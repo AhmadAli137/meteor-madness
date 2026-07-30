@@ -260,46 +260,44 @@ function AuroraHero({ mounted }: { mounted: boolean }) {
 /* -------- Team -------- */
 type TeamMember = {
   name: string;
-  role: string;
-  bio: string;
+  isLeader?: boolean;
   planetImg: string;
   alt: string;
   links?: { label: string; href: string }[];
 };
 
-// TODO: fill in the real Team CRG member names, bios, and links
 const TEAM: TeamMember[] = [
   {
     name: "Ahmad Ali",
-    role: "Lead Dev / Simulation",
-    bio: "Built the orbit visualizer and impact pipeline; battery systems nerd.",
+    isLeader: true,
     planetImg: "/planets/earth.png",
     alt: "Earth",
     links: [{ label: "GitHub", href: "https://github.com/AhmadAli137" }],
   },
   {
-    name: "Teammate B",
-    role: "3D & UI",
-    bio: "R3F scenes, camera paths, and the smooth-scrolling hero.",
+    name: "Mohamed EL-Gohary",
     planetImg: "/planets/saturn.png",
     alt: "Saturn",
-    links: [{ label: "Site", href: "#" }],
   },
   {
-    name: "Teammate C",
-    role: "Data & APIs",
-    bio: "NEO ingestion, filtering, and approach analytics.",
+    name: "Muhammad Bagalagel",
     planetImg: "/planets/jupiter.png",
     alt: "Jupiter",
-    links: [{ label: "LinkedIn", href: "#" }],
   },
   {
-    name: "Teammate D",
-    role: "Impact Science",
-    bio: "Crater model assumptions and map overlays.",
+    name: "Falah Shahid",
     planetImg: "/planets/mars.png",
     alt: "Mars",
-    links: [{ label: "Email", href: "#" }],
+  },
+  {
+    name: "Ahmed Nuur",
+    planetImg: "/planets/saturn.png",
+    alt: "Saturn",
+  },
+  {
+    name: "Faisal Bagalagel",
+    planetImg: "/planets/jupiter.png",
+    alt: "Jupiter",
   },
 ];
 
@@ -359,8 +357,11 @@ function TeamRow({ member, flip }: { member: TeamMember; flip?: boolean }) {
 
       <div className="rounded-xl bg-neutral-900/60 p-5 ring-1 ring-white/10">
         <div className="text-xl font-semibold text-white">{member.name}</div>
-        <div className="text-sm text-emerald-300">{member.role}</div>
-        <p className="mt-3 text-sm text-white/70">{member.bio}</p>
+        {member.isLeader && (
+          <div className="mt-1 inline-flex items-center rounded-full bg-emerald-900/40 px-2.5 py-0.5 text-xs text-emerald-300 ring-1 ring-emerald-700/50">
+            Team Leader
+          </div>
+        )}
         {member.links?.length ? (
           <div className="mt-4 flex flex-wrap gap-3">
             {member.links.map((l) => (

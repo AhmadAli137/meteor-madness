@@ -103,7 +103,13 @@ The repo is Vercel-ready (`vercel.json`, `postinstall` Cesium asset copy):
 
 ## Team CRG
 
-Built in 48 hours at the University of Windsor for NASA Space Apps 2025 by
-**Ahmad Ali** ([@AhmadAli137](https://github.com/AhmadAli137)) and Team CRG.
+Built in 48 hours at the University of Windsor for NASA Space Apps 2025 by:
+
+- **Ahmad Ali** ([@AhmadAli137](https://github.com/AhmadAli137)) — Team Leader
+- Mohamed EL-Gohary
+- Muhammad Bagalagel
+- Falah Shahid
+- Ahmed Nuur
+- Faisal Bagalagel
 
 > NASA does not endorse this project; it was built with publicly available NASA data for the Space Apps Challenge.
