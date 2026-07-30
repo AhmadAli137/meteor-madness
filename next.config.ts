@@ -16,9 +16,10 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
 
+  // The app renders plain <img> tags with local assets only; disabling the
+  // optimizer keeps the sharp/libvips image pipeline unreachable.
   images: {
-    formats: ["image/avif", "image/webp"],
-    remotePatterns: [{ protocol: "https", hostname: "**" }],
+    unoptimized: true,
   },
 
   experimental: {
