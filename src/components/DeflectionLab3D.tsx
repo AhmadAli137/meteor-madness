@@ -294,6 +294,11 @@ export default function DeflectionLab3D() {
 
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const [viewerReady, setViewerReady] = useState(false);
+  const [simProg, setSimProg] = useState<{ date: string; frac: number }>({
+    date: "—",
+    frac: 0,
+  });
 
   const [resultOpen, setResultOpen] = useState(false);
   const [resultSuccess, setResultSuccess] = useState<boolean | null>(null);
@@ -312,7 +317,7 @@ export default function DeflectionLab3D() {
 
       const viewer = new Viewer(holderRef.current, {
         animation: false,
-        timeline: true,
+        timeline: false,
         homeButton: true,
         sceneModePicker: true,
         baseLayerPicker: false,
@@ -378,8 +383,8 @@ export default function DeflectionLab3D() {
         name: "Earth Orbit",
         polyline: {
           positions: circlePts,
-          width: 1.6,
-          material: Color.CYAN.withAlpha(0.85),
+          width: 1.3,
+          material: Color.CYAN.withAlpha(0.45),
         },
       });
 
@@ -416,7 +421,33 @@ export default function DeflectionLab3D() {
       const keepRendering = () => viewer.scene.requestRender();
       viewer.clock.onTick.addEventListener(keepRendering);
 
-      viewerRef.current = { viewer, Cesium, keepRendering };
+      // Throttled mirror of the sim clock into React (drives the scrubber)
+      let lastUi = 0;
+      const uiTick = () => {
+        const nowMs = performance.now();
+        if (nowMs - lastUi < 200) return;
+        lastUi = nowMs;
+        const c = viewer.clock;
+        const total = Cesium.JulianDate.secondsDifference(
+          c.stopTime,
+          c.startTime
+        );
+        const cur = Cesium.JulianDate.secondsDifference(
+          c.currentTime,
+          c.startTime
+        );
+        const frac = total > 0 ? clamp(cur / total, 0, 1) : 0;
+        setSimProg({
+          date: Cesium.JulianDate.toDate(c.currentTime)
+            .toISOString()
+            .slice(0, 10),
+          frac,
+        });
+      };
+      viewer.clock.onTick.addEventListener(uiTick);
+
+      viewerRef.current = { viewer, Cesium, keepRendering, uiTick };
+      setViewerReady(true);
     })();
 
     return () => {
@@ -424,11 +455,29 @@ export default function DeflectionLab3D() {
       if (!store) return;
       try {
         store.viewer.clock.onTick.removeEventListener(store.keepRendering);
+        store.viewer.clock.onTick.removeEventListener(store.uiTick);
         store.viewer.destroy();
       } catch {}
       viewerRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function scrubTo(frac: number) {
+    const store = viewerRef.current;
+    if (!store) return;
+    const { viewer, Cesium } = store;
+    const total = Cesium.JulianDate.secondsDifference(
+      viewer.clock.stopTime,
+      viewer.clock.startTime
+    );
+    viewer.clock.currentTime = Cesium.JulianDate.addSeconds(
+      viewer.clock.startTime,
+      frac * total,
+      new Cesium.JulianDate()
+    );
+    viewer.scene.requestRender();
+  }
 
   useEffect(() => {
     const v = viewerRef.current?.viewer;
@@ -453,7 +502,21 @@ export default function DeflectionLab3D() {
       HeadingPitchRange,
       BoundingSphere,
       ClockRange,
+      PolylineGlowMaterialProperty,
+      PolylineDashMaterialProperty,
     } = Cesium;
+
+    // Glowing trail behind a moving body — makes the animation readable
+    const trail = (color: any, widthPx = 7) => ({
+      resolution: Math.max(3600, msToEncounter / 1000 / 600),
+      width: widthPx,
+      leadTime: 0,
+      trailTime: (msToEncounter / 1000) * 0.3,
+      material: new PolylineGlowMaterialProperty({
+        glowPower: 0.25,
+        color: color.withAlpha(0.85),
+      }),
+    });
 
     const rm = (x: any) => {
       try {
@@ -549,18 +612,19 @@ export default function DeflectionLab3D() {
       posOrig.addSample(t, new Cartesian3(p0.x, p0.y, p0.z));
     }
     ents.current.rockOrig = viewer.entities.add({
-      name: "Asteroid (original)",
+      name: "Asteroid (no deflection)",
       position: posOrig,
       point: {
-        pixelSize: 7,
+        pixelSize: 9,
         color: Color.MAGENTA,
         outlineColor: Color.BLACK,
         outlineWidth: 1,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
+      path: trail(Color.MAGENTA) as any,
       label: {
-        text: "orig",
-        font: "12px sans-serif",
+        text: "no deflection",
+        font: "11px sans-serif",
         style: LabelStyle.FILL_AND_OUTLINE,
         outlineColor: Color.BLACK,
         outlineWidth: 3,
@@ -572,7 +636,14 @@ export default function DeflectionLab3D() {
     });
     const orbit0Pts = orbitCurvePoints(a0AU, e0, 0, 0, 0, 1024, Cesium);
     ents.current.orbitOrig = viewer.entities.add({
-      polyline: { positions: orbit0Pts, width: 1.4, material: Color.MAGENTA },
+      polyline: {
+        positions: orbit0Pts,
+        width: 1.2,
+        material: new PolylineDashMaterialProperty({
+          color: Color.MAGENTA.withAlpha(0.35),
+          dashLength: 16,
+        }),
+      },
     });
 
     // Deflected orbit — Δa/a from true Δv, exaggerated by 10^visExp for
@@ -615,15 +686,16 @@ export default function DeflectionLab3D() {
       name: "Asteroid (deflected)",
       position: posNew,
       point: {
-        pixelSize: 7,
+        pixelSize: 9,
         color: Color.LIME,
         outlineColor: Color.BLACK,
         outlineWidth: 1,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
+      path: trail(Color.LIME) as any,
       label: {
-        text: "new",
-        font: "12px sans-serif",
+        text: "deflected",
+        font: "11px sans-serif",
         style: LabelStyle.FILL_AND_OUTLINE,
         outlineColor: Color.BLACK,
         outlineWidth: 3,
@@ -635,10 +707,17 @@ export default function DeflectionLab3D() {
     });
     const orbit1Pts = orbitCurvePoints(a1AU, e1, 0, 0, 0, 1024, Cesium);
     ents.current.orbitNew = viewer.entities.add({
-      polyline: { positions: orbit1Pts, width: 1.6, material: Color.LIME },
+      polyline: {
+        positions: orbit1Pts,
+        width: 1.2,
+        material: new PolylineDashMaterialProperty({
+          color: Color.LIME.withAlpha(0.4),
+          dashLength: 16,
+        }),
+      },
     });
 
-    // Earth marker at encounter
+    // Predicted impact point (where the undeflected asteroid meets Earth)
     ents.current.earthAtT = viewer.entities.add({
       position: new Cartesian3(
         Math.cos(thetaImpact) * AU_TO_SCENE,
@@ -646,13 +725,14 @@ export default function DeflectionLab3D() {
         0
       ),
       label: {
-        text: "T",
-        font: "bold 18px sans-serif",
-        fillColor: Color.CYAN,
+        text: "✖ predicted impact",
+        font: "bold 13px sans-serif",
+        fillColor: Color.fromCssColorString("#fb7185"),
         outlineColor: Color.BLACK,
         outlineWidth: 4,
-        pixelOffset: new Cartesian2(0, -12),
-        showBackground: false,
+        pixelOffset: new Cartesian2(0, -14),
+        showBackground: true,
+        backgroundColor: Color.fromAlpha(Color.BLACK, 0.55),
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
     });
@@ -685,22 +765,26 @@ export default function DeflectionLab3D() {
     ents.current.impactorPath = viewer.entities.add({
       polyline: {
         positions: [startVec, burnPos],
-        width: 1.2,
-        material: Color.WHITE.withAlpha(0.6),
+        width: 1,
+        material: new PolylineDashMaterialProperty({
+          color: Color.YELLOW.withAlpha(0.35),
+          dashLength: 12,
+        }),
       },
     });
     ents.current.impactor = viewer.entities.add({
-      name: "Impactor",
+      name: "Interceptor",
       position: impactorPos,
       point: {
-        pixelSize: 6,
-        color: Color.WHITE,
+        pixelSize: 7,
+        color: Color.YELLOW,
         outlineColor: Color.BLACK,
         outlineWidth: 1,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
+      path: trail(Color.YELLOW, 5) as any,
       label: {
-        text: "impactor",
+        text: "🚀 interceptor",
         font: "11px sans-serif",
         style: LabelStyle.FILL_AND_OUTLINE,
         outlineColor: Color.BLACK,
@@ -723,7 +807,7 @@ export default function DeflectionLab3D() {
     const offset = new HeadingPitchRange(
       CMath.toRadians(22),
       -CMath.toRadians(28),
-      sphere.radius * 3.0
+      sphere.radius * 2.3
     );
     viewer.camera.flyToBoundingSphere(sphere, { offset, duration: 0 });
 
@@ -740,6 +824,7 @@ export default function DeflectionLab3D() {
     msToEncounter,
     visExp,
     deltaV_tangent_kps,
+    viewerReady,
   ]);
 
   function evaluateMission() {
@@ -791,7 +876,7 @@ export default function DeflectionLab3D() {
   }`;
 
   return (
-    <div className="mm-view cesium-show-widgets relative">
+    <div className="relative h-full min-h-[560px] w-full overflow-hidden">
       <div ref={holderRef} className="absolute inset-0" />
 
       <div className="absolute top-3 left-3 z-10 max-h-[calc(100%-24px)] w-[440px] max-w-[92vw] overflow-y-auto rounded-xl bg-black/70 ring-1 ring-white/10 backdrop-blur">
@@ -1038,13 +1123,30 @@ export default function DeflectionLab3D() {
           >
             🚀 Evaluate Mission
           </button>
+          {/* Sim transport: play, scrubber, date */}
           <div className="flex items-center gap-2 text-xs">
             <button
-              className="rounded bg-sky-800/80 px-3 py-1 ring-1 ring-sky-500/40 hover:bg-sky-700"
+              className="shrink-0 rounded bg-sky-800/80 px-3 py-1 ring-1 ring-sky-500/40 hover:bg-sky-700"
               onClick={() => setPlaying((v) => !v)}
             >
               {playing ? "⏸ Pause" : "▶ Play"}
             </button>
+            <input
+              type="range"
+              className="min-w-0 flex-1 accent-emerald-500"
+              min={0}
+              max={1000}
+              step={1}
+              value={Math.round(simProg.frac * 1000)}
+              onChange={(e) => scrubTo(Number(e.target.value) / 1000)}
+              title="Scrub the simulation"
+            />
+            <span className="shrink-0 font-mono text-[10px] text-white/60">
+              {simProg.date}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-[10px] text-white/50">Speed</span>
             <input
               type="range"
               className="w-24 accent-sky-400"
@@ -1060,10 +1162,28 @@ export default function DeflectionLab3D() {
               Δv ≈ {(deltaV_true_kps * 1e6).toFixed(2)} mm/s
             </span>
           </div>
+
+          {/* Legend */}
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-white/60">
+            <span>
+              <span className="text-fuchsia-400">●</span> no deflection
+            </span>
+            <span>
+              <span className="text-lime-400">●</span> deflected
+            </span>
+            <span>
+              <span className="text-cyan-300">●</span> Earth
+            </span>
+            <span>
+              <span className="text-yellow-300">●</span> interceptor
+            </span>
+            <span>
+              <span className="text-rose-400">✖</span> predicted impact
+            </span>
+          </div>
           <div className="text-[10px] leading-relaxed text-white/45">
-            Magenta = original orbit • lime = deflected (visually exaggerated).
-            Miss distance uses the true Δv via along-track drift ≈ 3·Δv·t — the
-            DART principle.
+            Orbit change is visually exaggerated; the miss distance always uses
+            the true Δv (along-track drift ≈ 3·Δv·t — the DART principle).
           </div>
         </div>
       </div>
