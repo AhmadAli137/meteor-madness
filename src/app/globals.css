@@ -186,6 +186,172 @@ html {
 }
 
 /* =========================
+   Galaxy Team Section
+   ========================= */
+.mm-galaxy {
+  background:
+    radial-gradient(ellipse 60% 40% at 25% 15%, rgba(16, 185, 129, 0.09), transparent 60%),
+    radial-gradient(ellipse 55% 45% at 75% 45%, rgba(99, 102, 241, 0.12), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 40% 85%, rgba(217, 70, 239, 0.08), transparent 60%),
+    #050409;
+}
+
+/* Twinkling star specks */
+@keyframes mm-twinkle {
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: scale(0.75);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+.mm-star {
+  position: absolute;
+  border-radius: 9999px;
+  animation: mm-twinkle 3.2s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+/* Slowly drifting nebula blobs */
+@keyframes mm-nebula-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(4%, -5%, 0) scale(1.12);
+  }
+}
+.mm-nebula {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  animation: mm-nebula-drift 18s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Shooting stars */
+@keyframes mm-shoot {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(210deg);
+    opacity: 0;
+  }
+  2% {
+    opacity: 1;
+  }
+  10% {
+    transform: translate3d(-65vw, 38vh, 0) rotate(210deg);
+    opacity: 0;
+  }
+  100% {
+    transform: translate3d(-65vw, 38vh, 0) rotate(210deg);
+    opacity: 0;
+  }
+}
+.mm-shooting-star {
+  position: absolute;
+  width: 130px;
+  height: 2px;
+  background: linear-gradient(
+    to left,
+    rgba(255, 255, 255, 0.95),
+    rgba(165, 243, 252, 0.4),
+    transparent
+  );
+  border-radius: 9999px;
+  transform-origin: right center;
+  animation: mm-shoot 11s linear infinite;
+  will-change: transform, opacity;
+}
+
+/* Shimmering gradient headline */
+@keyframes mm-text-shimmer {
+  to {
+    background-position: 200% center;
+  }
+}
+.mm-shimmer-text {
+  background: linear-gradient(
+    90deg,
+    #6ee7b7 0%,
+    #ffffff 25%,
+    #67e8f9 50%,
+    #ffffff 75%,
+    #6ee7b7 100%
+  );
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: mm-text-shimmer 5s linear infinite;
+}
+
+/* Pulsing planet glow */
+@keyframes mm-planet-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 16px rgba(110, 231, 183, 0.22))
+      drop-shadow(0 0 42px rgba(103, 232, 249, 0.12));
+  }
+  50% {
+    filter: drop-shadow(0 0 26px rgba(103, 232, 249, 0.4))
+      drop-shadow(0 0 60px rgba(110, 231, 183, 0.2));
+  }
+}
+.mm-planet-glow {
+  animation: mm-planet-glow 5.5s ease-in-out infinite;
+  will-change: filter;
+}
+
+/* Shine sweep across cards */
+@keyframes mm-card-shine {
+  0% {
+    left: -80%;
+  }
+  45%,
+  100% {
+    left: 140%;
+  }
+}
+.mm-card-shine {
+  position: relative;
+  overflow: hidden;
+}
+.mm-card-shine::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -80%;
+  height: 100%;
+  width: 55%;
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.09) 50%,
+    transparent 100%
+  );
+  animation: mm-card-shine 7s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mm-star,
+  .mm-nebula,
+  .mm-shooting-star,
+  .mm-shimmer-text,
+  .mm-planet-glow,
+  .mm-card-shine::before {
+    animation: none !important;
+  }
+  .mm-shooting-star {
+    display: none;
+  }
+}
+
+/* =========================
    Simulation Lab Viewports
    ========================= */
 /* Fixed-height viewport for the Cesium labs (Impactor / Deflection),

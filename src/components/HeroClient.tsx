@@ -301,25 +301,99 @@ const TEAM: TeamMember[] = [
   },
 ];
 
+/** Deterministic pseudo-random star positions (stable across SSR/hydration). */
+function seededStars(count: number) {
+  let s = 1337;
+  const rnd = () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 2 ** 32;
+  };
+  const palette = ["#ffffff", "#a7f3d0", "#a5f3fc", "#e9d5ff"];
+  return Array.from({ length: count }, (_, i) => ({
+    id: i,
+    top: rnd() * 100,
+    left: rnd() * 100,
+    size: 1 + rnd() * 1.8,
+    color: palette[Math.floor(rnd() * palette.length)],
+    delay: rnd() * 5,
+    duration: 2.4 + rnd() * 3.6,
+  }));
+}
+
+const GALAXY_STARS = seededStars(110);
+
+function GalaxyBackdrop() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 z-0">
+      {/* nebula glows */}
+      <div
+        className="mm-nebula h-[420px] w-[420px] bg-emerald-500/10"
+        style={{ top: "5%", left: "8%" }}
+      />
+      <div
+        className="mm-nebula h-[520px] w-[520px] bg-indigo-500/10"
+        style={{ top: "38%", right: "4%", animationDelay: "-6s" }}
+      />
+      <div
+        className="mm-nebula h-[380px] w-[380px] bg-fuchsia-500/10"
+        style={{ bottom: "6%", left: "28%", animationDelay: "-12s" }}
+      />
+
+      {/* twinkling stars */}
+      {GALAXY_STARS.map((st) => (
+        <div
+          key={st.id}
+          className="mm-star"
+          style={{
+            top: `${st.top}%`,
+            left: `${st.left}%`,
+            width: `${st.size}px`,
+            height: `${st.size}px`,
+            backgroundColor: st.color,
+            boxShadow: `0 0 ${st.size * 3}px ${st.color}`,
+            animationDelay: `${st.delay}s`,
+            animationDuration: `${st.duration}s`,
+          }}
+        />
+      ))}
+
+      {/* shooting stars */}
+      <div
+        className="mm-shooting-star"
+        style={{ top: "12%", right: "6%", animationDelay: "2s" }}
+      />
+      <div
+        className="mm-shooting-star"
+        style={{ top: "44%", right: "-2%", animationDelay: "7.5s" }}
+      />
+      <div
+        className="mm-shooting-star"
+        style={{ top: "70%", right: "12%", animationDelay: "13s" }}
+      />
+    </div>
+  );
+}
+
 function TeamPlanets() {
   return (
-    <section
-      id="team-planets"
-      className="mx-auto w-full max-w-6xl px-4 py-28 md:px-6"
-    >
-      <header className="mb-10 text-center">
-        <h2 className="text-2xl font-bold text-white md:text-4xl">
-          Meet the Team
-        </h2>
-        <p className="mt-2 text-white/60">
-          Scroll to explore the crew—each planet marks a teammate.
-        </p>
-      </header>
+    <section id="team-planets" className="mm-galaxy relative overflow-hidden">
+      <GalaxyBackdrop />
 
-      <div className="space-y-16">
-        {TEAM.map((m, i) => (
-          <TeamRow key={m.name} member={m} flip={i % 2 === 1} />
-        ))}
+      <div className="relative z-10 mx-auto w-full max-w-6xl px-4 py-28 md:px-6">
+        <header className="mb-10 text-center">
+          <h2 className="mm-shimmer-text text-2xl font-bold md:text-4xl">
+            Meet the Team
+          </h2>
+          <p className="mt-2 text-white/60">
+            Scroll to explore the crew—each planet marks a teammate.
+          </p>
+        </header>
+
+        <div className="space-y-16">
+          {TEAM.map((m, i) => (
+            <TeamRow key={m.name} member={m} flip={i % 2 === 1} />
+          ))}
+        </div>
       </div>
     </section>
   );

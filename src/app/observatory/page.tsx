@@ -20,6 +20,7 @@ export default function ObservatoryPage() {
   const [data, setData] = useState<ApproachRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [source, setSource] = useState<"live" | "sample">("live");
 
   // View state
   const [view3D, setView3D] = useState(false);
@@ -42,6 +43,7 @@ export default function ObservatoryPage() {
           ? (json.items as ApproachRow[])
           : [];
         setData(items);
+        setSource(json?.source === "sample" ? "sample" : "live");
         // initialize selection to ALL
         setSelectedIds(new Set(items.map((n) => n.id)));
       } catch {
@@ -86,6 +88,14 @@ export default function ObservatoryPage() {
                 {loading
                   ? "Loading…"
                   : `${displayNeos.length}/${neos.length} shown`}
+              </span>
+            )}
+            {!loading && !error && source === "sample" && (
+              <span
+                className="rounded-full bg-amber-800/60 px-2 py-[2px] text-xs"
+                title="NASA's live NeoWs API is unavailable or rate-limited; showing bundled JPL close-approach data instead."
+              >
+                Offline sample data
               </span>
             )}
           </div>

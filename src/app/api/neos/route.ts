@@ -1,5 +1,6 @@
 // src/app/api/neos/route.ts
 import { NextResponse } from "next/server";
+import sampleNeos from "@/data/neos.sample.json";
 
 /** ---------- Minimal NEOWS type shapes (only fields we read) ---------- */
 type NeoWSVelocity = { kilometers_per_second?: string };
@@ -175,14 +176,17 @@ async function fetchNEOs(
 }
 
 // GET /api/neos
+// Falls back to a bundled JPL-derived sample (see scripts/build-sample-neos.mjs)
+// whenever the live NeoWs API is down, rate-limited, or returns nothing.
 export async function GET() {
   try {
     const items = await fetchNEOs(250, 6, 30);
-    return NextResponse.json({ items });
-  } catch (e) {
-    return NextResponse.json(
-      { error: "Failed to fetch NEOs" },
-      { status: 500 }
-    );
-  }
+    if (items.length > 0) {
+      return NextResponse.json({ items, source: "live" });
+    }
+  } catch {}
+  return NextResponse.json({
+    items: sampleNeos as unknown as ApproachRow[],
+    source: "sample",
+  });
 }
