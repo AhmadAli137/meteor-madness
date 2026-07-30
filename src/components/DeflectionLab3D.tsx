@@ -158,6 +158,54 @@ function orbitCurvePoints(
   return pts;
 }
 
+function LabSlider({
+  label,
+  display,
+  hint,
+  title,
+  min,
+  max,
+  step,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  display: string;
+  hint?: string;
+  title?: string;
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+  onChange: (v: number) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div title={title} className={disabled ? "opacity-50" : ""}>
+      <div className="flex items-baseline justify-between text-xs">
+        <span className="text-white/80">{label}</span>
+        <span className="font-mono text-white">{display}</span>
+      </div>
+      <input
+        type="range"
+        className="mt-1 w-full accent-emerald-500"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        disabled={disabled}
+      />
+      {hint && (
+        <div className="mt-0.5 text-[10px] leading-snug text-white/45">
+          {hint}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function DeflectionLab3D() {
   const carry = useMemo<ImpactCarryover | null>(() => {
     try {
@@ -263,7 +311,7 @@ export default function DeflectionLab3D() {
       creditDiv.style.display = "none";
 
       const viewer = new Viewer(holderRef.current, {
-        animation: true,
+        animation: false,
         timeline: true,
         homeButton: true,
         sceneModePicker: true,
@@ -702,102 +750,163 @@ export default function DeflectionLab3D() {
 
   const disableAsteroid = useCarry && !!carry;
 
+  // Mission status derived from the true miss distance
+  const EARTH_RADIUS_KM = 6371;
+  const status: "hit" | "close" | "safe" =
+    missKm >= SAFE_MISS_KM
+      ? "safe"
+      : missKm >= EARTH_RADIUS_KM
+        ? "close"
+        : "hit";
+  const statusText = {
+    hit: "☄ DIRECT HIT",
+    close: "⚠ TOO CLOSE",
+    safe: "✓ EARTH IS SAFE",
+  }[status];
+  const statusMsg = {
+    hit: "The asteroid still strikes Earth. Push harder or strike earlier.",
+    close: "Deflected — but inside the safety margin. Almost there.",
+    safe: "The asteroid misses comfortably. Mission parameters look good.",
+  }[status];
+  const statusTextColor = {
+    hit: "text-rose-400",
+    close: "text-amber-300",
+    safe: "text-emerald-400",
+  }[status];
+  const statusBarColor = {
+    hit: "bg-rose-500",
+    close: "bg-amber-400",
+    safe: "bg-emerald-500",
+  }[status];
+  const statusChip = {
+    hit: "bg-rose-900/70 text-rose-200 ring-rose-500/50",
+    close: "bg-amber-900/70 text-amber-200 ring-amber-500/50",
+    safe: "bg-emerald-900/70 text-emerald-200 ring-emerald-500/50",
+  }[status];
+  // bar scaled so the success threshold sits at 75% of its width
+  const barPct = Math.min(100, (missKm / (SAFE_MISS_KM / 0.75)) * 100);
+
+  const leadDisplay = `${I.burnDays.toLocaleString()} d${
+    I.burnDays >= 365 ? ` ≈ ${(I.burnDays / 365.25).toFixed(1)} y` : ""
+  }`;
+
   return (
     <div className="mm-view cesium-show-widgets relative">
       <div ref={holderRef} className="absolute inset-0" />
 
-      <div className="absolute top-3 left-3 z-10 w-[460px] max-w-[92vw] space-y-3 rounded-xl bg-black/60 p-3 ring-1 ring-white/10 backdrop-blur">
-        <div className="text-sm font-semibold">
-          Mission: Save Earth — Deflection Lab
+      <div className="absolute top-3 left-3 z-10 max-h-[calc(100%-24px)] w-[440px] max-w-[92vw] overflow-y-auto rounded-xl bg-black/70 ring-1 ring-white/10 backdrop-blur">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-white/10 px-4 py-2.5">
+          <div className="text-sm font-semibold">🛡 Mission: Save Earth</div>
+          <span
+            className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${statusChip}`}
+          >
+            {statusText}
+          </span>
         </div>
 
-        {carry && (
-          <div className="text-[11px] text-white/80">
-            Asteroid from Impactor Lab:{" "}
-            <span className="font-mono">{carry.name}</span> (d≈
-            {carry.diameterKm ?? "?"} km, v≈{carry.velKps ?? "?"} km/s).
-            <label className="ml-2 inline-flex items-center gap-1">
-              <input
-                type="checkbox"
-                checked={useCarry}
-                onChange={(e) => setUseCarry(e.target.checked)}
-              />
-              use it
-            </label>
-          </div>
-        )}
-
-        <div className="grid grid-cols-[170px_1fr] items-center gap-2 text-xs">
-          <label className={disableAsteroid ? "opacity-50" : ""}>
-            Asteroid diameter (km)
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              type="range"
-              min={0.05}
-              max={20}
-              step={0.05}
-              value={asteroid.diameterKm}
-              onChange={(e) =>
-                setAsteroid((s) => ({
-                  ...s,
-                  diameterKm: Number(e.target.value),
-                }))
-              }
-              className="w-full"
-              disabled={disableAsteroid}
-            />
-            <span className="w-14 text-right">
-              {asteroid.diameterKm.toFixed(2)}
+        {/* Live miss-distance gauge */}
+        <div className="border-b border-white/10 px-4 py-3">
+          <div className="flex items-baseline justify-between">
+            <span className="text-[10px] uppercase tracking-widest text-white/50">
+              Predicted miss distance
+            </span>
+            <span className="text-[10px] text-white/50">
+              goal ≥ {SAFE_MISS_KM.toLocaleString()} km
             </span>
           </div>
-
-          <label
-            className={disableAsteroid ? "opacity-50" : ""}
-            title="~1500 kg/m³ rubble pile, ~3000 stony, ~8000 iron"
+          <div
+            className={`mt-0.5 text-3xl font-bold tabular-nums ${statusTextColor}`}
           >
-            Density (kg/m³)
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              type="range"
-              min={1000}
-              max={8000}
-              step={100}
-              value={asteroid.density}
-              onChange={(e) =>
-                setAsteroid((s) => ({ ...s, density: Number(e.target.value) }))
-              }
-              className="w-full"
-              disabled={disableAsteroid}
+            {Math.round(missKm).toLocaleString()}{" "}
+            <span className="text-base font-medium text-white/60">km</span>
+          </div>
+          <div className="relative mt-2 h-2.5 rounded-full bg-white/10">
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${statusBarColor}`}
+              style={{ width: `${barPct}%` }}
             />
-            <span className="w-14 text-right">{asteroid.density}</span>
+            <div
+              className="absolute -bottom-[3px] -top-[3px] w-[2px] rounded bg-white/70"
+              style={{ left: "75%" }}
+              title={`Success threshold: ${SAFE_MISS_KM.toLocaleString()} km`}
+            />
+          </div>
+          <div className={`mt-1.5 text-[11px] ${statusTextColor}`}>
+            {statusMsg}
+          </div>
+        </div>
+
+        {/* The threat */}
+        <div className="border-b border-white/10 px-4 py-3">
+          <div className="mb-2 text-[10px] uppercase tracking-widest text-white/50">
+            The threat
           </div>
 
-          <label className={disableAsteroid ? "opacity-50" : ""}>
-            Heliocentric speed (km/s)
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              type="range"
-              min={11}
-              max={72}
-              step={1}
-              value={asteroid.speedKps}
-              onChange={(e) =>
-                setAsteroid((s) => ({ ...s, speedKps: Number(e.target.value) }))
-              }
-              className="w-full"
-              disabled={disableAsteroid}
-            />
-            <span className="w-10 text-right">{asteroid.speedKps}</span>
-          </div>
+          {carry && useCarry ? (
+            <div className="flex items-center justify-between rounded-lg bg-neutral-800/70 px-3 py-2 ring-1 ring-white/10">
+              <div className="text-xs">
+                <div className="font-mono text-rose-300">{carry.name}</div>
+                <div className="mt-0.5 text-white/60">
+                  Ø {carry.diameterKm ?? "?"} km • {carry.velKps ?? "?"} km/s •{" "}
+                  {massAstKg.toExponential(1)} kg
+                </div>
+              </div>
+              <button
+                className="rounded bg-neutral-700 px-2 py-1 text-[11px] hover:bg-neutral-600"
+                onClick={() => setUseCarry(false)}
+              >
+                Customize
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {carry && (
+                <button
+                  className="text-[11px] text-emerald-300 underline underline-offset-2 hover:text-emerald-200"
+                  onClick={() => setUseCarry(true)}
+                >
+                  ← Use {carry.name} from the Impactor Lab
+                </button>
+              )}
+              <LabSlider
+                label="Asteroid diameter"
+                display={`${asteroid.diameterKm.toFixed(2)} km`}
+                min={0.05}
+                max={20}
+                step={0.05}
+                value={asteroid.diameterKm}
+                onChange={(v) =>
+                  setAsteroid((s) => ({ ...s, diameterKm: v }))
+                }
+              />
+              <LabSlider
+                label="Density"
+                title="~1500 kg/m³ rubble pile, ~3000 stony, ~8000 iron"
+                display={`${asteroid.density} kg/m³`}
+                min={1000}
+                max={8000}
+                step={100}
+                value={asteroid.density}
+                onChange={(v) => setAsteroid((s) => ({ ...s, density: v }))}
+              />
+              <LabSlider
+                label="Orbital speed"
+                display={`${asteroid.speedKps} km/s`}
+                min={11}
+                max={72}
+                step={1}
+                value={asteroid.speedKps}
+                onChange={(v) => setAsteroid((s) => ({ ...s, speedKps: v }))}
+              />
+            </div>
+          )}
 
-          <label>Time to encounter</label>
-          <div className="flex gap-2">
+          <div className="mt-2.5 flex items-center gap-2 text-xs">
+            <span className="text-white/70">Hits Earth in</span>
             <input
               type="number"
-              className="w-16 rounded bg-neutral-800/60 px-2 py-1"
+              className="w-14 rounded bg-neutral-800/70 px-2 py-1 text-center"
               min={0}
               max={20}
               value={encounterTime.years}
@@ -808,10 +917,10 @@ export default function DeflectionLab3D() {
                 }))
               }
             />
-            <span className="self-center">y</span>
+            <span className="text-white/50">y</span>
             <input
               type="number"
-              className="w-16 rounded bg-neutral-800/60 px-2 py-1"
+              className="w-14 rounded bg-neutral-800/70 px-2 py-1 text-center"
               min={0}
               max={11}
               value={encounterTime.months}
@@ -822,10 +931,10 @@ export default function DeflectionLab3D() {
                 }))
               }
             />
-            <span className="self-center">m</span>
+            <span className="text-white/50">m</span>
             <input
               type="number"
-              className="w-16 rounded bg-neutral-800/60 px-2 py-1"
+              className="w-14 rounded bg-neutral-800/70 px-2 py-1 text-center"
               min={0}
               max={30}
               value={encounterTime.days}
@@ -836,209 +945,203 @@ export default function DeflectionLab3D() {
                 }))
               }
             />
-            <span className="self-center">d</span>
+            <span className="text-white/50">d</span>
           </div>
+        </div>
 
-          <label title="How long before the encounter the impactor hits the asteroid. Longer lead time = more drift from the same Δv — this is why early detection matters.">
-            Burn lead time (days)
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              type="range"
+        {/* Your mission */}
+        <div className="border-b border-white/10 px-4 py-3">
+          <div className="mb-2 text-[10px] uppercase tracking-widest text-white/50">
+            Your mission — kinetic impactor
+          </div>
+          <div className="space-y-2.5">
+            <LabSlider
+              label="Strike early — lead time"
+              hint="More lead time = more drift from the same nudge. Early detection wins."
+              display={leadDisplay}
               min={0}
               max={3650}
               step={5}
               value={I.burnDays}
-              onChange={(e) =>
-                setI((s) => ({ ...s, burnDays: Number(e.target.value) }))
-              }
-              className="w-full"
+              onChange={(v) => setI((s) => ({ ...s, burnDays: v }))}
             />
-            <span className="w-12 text-right">{I.burnDays}</span>
-          </div>
-
-          <label title="DART was ~570 kg; heavy-lift missions could deliver a few tonnes. The slider goes far beyond for experimentation.">
-            Impactor mass (kg)
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              type="range"
+            <LabSlider
+              label="Impactor mass"
+              title="DART was ~570 kg; heavy-lift missions could deliver a few tonnes."
+              display={`${(I.impactorMassKg / 1000).toLocaleString(undefined, {
+                maximumFractionDigits: 1,
+              })} t`}
               min={500}
               max={1e7}
               step={500}
               value={I.impactorMassKg}
-              onChange={(e) =>
-                setI((s) => ({ ...s, impactorMassKg: Number(e.target.value) }))
-              }
-              className="w-full"
+              onChange={(v) => setI((s) => ({ ...s, impactorMassKg: v }))}
             />
-            <span className="w-20 text-right">
-              {I.impactorMassKg.toLocaleString()}
-            </span>
-          </div>
-
-          <label>Relative speed (km/s)</label>
-          <div className="flex items-center gap-2">
-            <input
-              type="range"
+            <LabSlider
+              label="Impact speed (relative)"
+              display={`${I.impactorRelSpeedKps} km/s`}
               min={1}
               max={30}
               step={0.5}
               value={I.impactorRelSpeedKps}
-              onChange={(e) =>
-                setI((s) => ({
-                  ...s,
-                  impactorRelSpeedKps: Number(e.target.value),
-                }))
+              onChange={(v) =>
+                setI((s) => ({ ...s, impactorRelSpeedKps: v }))
               }
-              className="w-full"
             />
-            <span className="w-10 text-right">{I.impactorRelSpeedKps}</span>
-          </div>
-
-          <label title="Momentum enhancement from impact ejecta. DART measured β ≈ 2.2–4.9 at Dimorphos.">
-            Momentum factor β
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              type="range"
-              min={1}
-              max={5}
-              step={0.1}
-              value={I.beta}
-              onChange={(e) =>
-                setI((s) => ({ ...s, beta: Number(e.target.value) }))
-              }
-              className="w-full"
-            />
-            <span className="w-10 text-right">{I.beta.toFixed(1)}</span>
-          </div>
-
-          <label title="0° = push along the orbit (most effective), 90° = sideways (no along-track effect), 180° = push against the orbit.">
-            Burn angle φ (deg)
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              type="range"
+            <LabSlider
+              label="Aim — push direction φ"
+              hint="0° pushes along the orbit (most effective); 90° wastes the shot."
+              display={`${I.phiDeg}°`}
               min={0}
               max={180}
               step={5}
               value={I.phiDeg}
-              onChange={(e) =>
-                setI((s) => ({ ...s, phiDeg: Number(e.target.value) }))
-              }
-              className="w-full"
+              onChange={(v) => setI((s) => ({ ...s, phiDeg: v }))}
             />
-            <span className="w-10 text-right">{I.phiDeg}</span>
           </div>
 
-          <label title="Purely cosmetic: exaggerates the drawn orbit change so a mm/s Δv is visible at solar-system scale. Does not affect the physics readouts.">
-            Visual gain (10^x)
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              type="range"
-              min={0}
-              max={7}
-              step={0.5}
-              value={visExp}
-              onChange={(e) => setVisExp(Number(e.target.value))}
-              className="w-full"
-            />
-            <span className="w-12 text-right">10^{visExp.toFixed(1)}</span>
-          </div>
+          {/* Advanced */}
+          <details className="mt-2.5 rounded-lg bg-neutral-900/60 ring-1 ring-white/10">
+            <summary className="cursor-pointer select-none px-3 py-1.5 text-[11px] text-white/60 hover:text-white/80">
+              Advanced (β, visual gain)
+            </summary>
+            <div className="space-y-2.5 px-3 pb-3 pt-1">
+              <LabSlider
+                label="Momentum factor β"
+                title="Momentum enhancement from impact ejecta. DART measured β ≈ 2.2–4.9 at Dimorphos."
+                display={I.beta.toFixed(1)}
+                min={1}
+                max={5}
+                step={0.1}
+                value={I.beta}
+                onChange={(v) => setI((s) => ({ ...s, beta: v }))}
+              />
+              <LabSlider
+                label="Visual gain (cosmetic)"
+                hint="Exaggerates the drawn orbit change only — never the physics numbers."
+                display={`10^${visExp.toFixed(1)}`}
+                min={0}
+                max={7}
+                step={0.5}
+                value={visExp}
+                onChange={setVisExp}
+              />
+            </div>
+          </details>
+        </div>
 
-          <label>Sim speed</label>
-          <div className="flex items-center gap-2">
+        {/* Actions */}
+        <div className="space-y-2 px-4 py-3">
+          <button
+            className="w-full rounded-lg bg-emerald-600 py-2 text-sm font-semibold ring-1 ring-emerald-400 hover:bg-emerald-500"
+            onClick={evaluateMission}
+          >
+            🚀 Evaluate Mission
+          </button>
+          <div className="flex items-center gap-2 text-xs">
+            <button
+              className="rounded bg-sky-800/80 px-3 py-1 ring-1 ring-sky-500/40 hover:bg-sky-700"
+              onClick={() => setPlaying((v) => !v)}
+            >
+              {playing ? "⏸ Pause" : "▶ Play"}
+            </button>
             <input
               type="range"
+              className="w-24 accent-sky-400"
               min={0.2}
               max={20}
               step={0.2}
               value={speed}
               onChange={(e) => setSpeed(Number(e.target.value))}
-              className="w-full"
+              title="Simulation speed"
             />
-            <span className="w-10 text-right">{speed.toFixed(1)}×</span>
+            <span className="w-10 text-white/60">{speed.toFixed(1)}×</span>
+            <span className="ml-auto text-[11px] text-white/50">
+              Δv ≈ {(deltaV_true_kps * 1e6).toFixed(2)} mm/s
+            </span>
           </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            className="rounded bg-emerald-600 px-3 py-1 text-sm hover:bg-emerald-500"
-            onClick={evaluateMission}
-          >
-            Evaluate Mission
-          </button>
-          <button
-            className="rounded bg-sky-700 px-3 py-1 text-sm hover:bg-sky-600"
-            onClick={() => setPlaying((v) => !v)}
-          >
-            {playing ? "Pause" : "Play"}
-          </button>
-
-          <div className="text-[11px] opacity-80">
-            Δv ≈ {(deltaV_true_kps * 1e6).toFixed(2)} mm/s • along-track Δvₜ ={" "}
-            {(deltaV_tangent_kps * 1e6).toFixed(2)} mm/s
+          <div className="text-[10px] leading-relaxed text-white/45">
+            Magenta = original orbit • lime = deflected (visually exaggerated).
+            Miss distance uses the true Δv via along-track drift ≈ 3·Δv·t — the
+            DART principle.
           </div>
-        </div>
-
-        <div className="text-[11px] opacity-80">
-          Predicted miss distance:{" "}
-          <span className="font-mono">
-            {Math.round(missKm).toLocaleString()}
-          </span>{" "}
-          km • Success threshold: {SAFE_MISS_KM.toLocaleString()} km
-        </div>
-
-        <div className="text-[11px] opacity-70">
-          Magenta = original; lime = deflected (visually exaggerated). Miss
-          distance uses the true Δv via along-track drift ≈ 3·Δv·t — small
-          nudges work if you strike early, just like DART.
         </div>
       </div>
 
       {resultOpen && resultSuccess !== null && (
         <div className="absolute inset-0 z-50 flex items-center justify-center">
           <div
-            className="fixed inset-0 bg-black/60"
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setResultOpen(false)}
           />
-          <div className="relative z-10 w-[420px] max-w-[92vw] space-y-3 rounded-xl bg-neutral-900 p-5 ring-1 ring-white/10">
+          <div
+            className={`relative z-10 w-[440px] max-w-[92vw] space-y-4 rounded-2xl bg-neutral-900 p-6 text-center ring-2 ${
+              resultSuccess ? "ring-emerald-500/60" : "ring-rose-500/60"
+            }`}
+          >
+            <div className="text-5xl">{resultSuccess ? "🌍✅" : "☄️💥"}</div>
             <div
-              className={`text-xl font-semibold ${
+              className={`text-2xl font-bold ${
                 resultSuccess ? "text-emerald-400" : "text-rose-400"
               }`}
             >
-              {resultSuccess ? "Mission Successful 🎉" : "Mission Failure"}
+              {resultSuccess ? "Earth is Safe!" : "Impact Not Averted"}
             </div>
-            <div className="text-sm text-white/80">
-              Miss distance:{" "}
-              <span className="font-mono">
-                {Math.round(missKm).toLocaleString()} km
-              </span>{" "}
-              (threshold {SAFE_MISS_KM.toLocaleString()} km)
+
+            <div
+              className={`text-3xl font-bold tabular-nums ${
+                resultSuccess ? "text-emerald-300" : "text-rose-300"
+              }`}
+            >
+              {Math.round(missKm).toLocaleString()}{" "}
+              <span className="text-base font-medium text-white/60">
+                km miss distance
+              </span>
             </div>
-            <div className="text-sm text-white/70">
-              Δv:{" "}
-              <span className="font-mono">
-                {(deltaV_true_kps * 1e6).toFixed(2)} mm/s
-              </span>{" "}
-              • Lead time: <span className="font-mono">{I.burnDays} days</span>{" "}
-              • β: <span className="font-mono">{I.beta.toFixed(1)}</span>
+            <div className="text-xs text-white/50">
+              success threshold {SAFE_MISS_KM.toLocaleString()} km
             </div>
+
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="rounded-lg bg-neutral-800/70 px-2 py-2 ring-1 ring-white/10">
+                <div className="text-white/50">Δv delivered</div>
+                <div className="mt-0.5 font-mono text-white">
+                  {(deltaV_true_kps * 1e6).toFixed(2)} mm/s
+                </div>
+              </div>
+              <div className="rounded-lg bg-neutral-800/70 px-2 py-2 ring-1 ring-white/10">
+                <div className="text-white/50">Lead time</div>
+                <div className="mt-0.5 font-mono text-white">
+                  {I.burnDays.toLocaleString()} d
+                </div>
+              </div>
+              <div className="rounded-lg bg-neutral-800/70 px-2 py-2 ring-1 ring-white/10">
+                <div className="text-white/50">β</div>
+                <div className="mt-0.5 font-mono text-white">
+                  {I.beta.toFixed(1)}
+                </div>
+              </div>
+            </div>
+
             {!resultSuccess && (
-              <div className="text-sm text-white/60">
-                Tip: strike earlier (more lead time), use a heavier or faster
-                impactor, or aim closer to prograde (φ → 0°).
+              <div className="rounded-lg bg-rose-950/40 px-3 py-2 text-left text-xs leading-relaxed text-rose-100/80 ring-1 ring-rose-500/30">
+                <span className="font-semibold">Mission debrief:</span> strike
+                earlier (more lead time), send a heavier or faster impactor, or
+                aim closer to prograde (φ → 0°). Small nudges succeed when they
+                come early — that&apos;s the DART lesson.
               </div>
             )}
-            <div className="flex gap-2 pt-2">
+
+            <div className="flex justify-center gap-2 pt-1">
               <button
-                className="rounded bg-neutral-700 px-3 py-1 text-sm hover:bg-neutral-600"
+                className={`rounded-lg px-4 py-2 text-sm font-semibold ${
+                  resultSuccess
+                    ? "bg-emerald-600 ring-1 ring-emerald-400 hover:bg-emerald-500"
+                    : "bg-rose-600 ring-1 ring-rose-400 hover:bg-rose-500"
+                }`}
                 onClick={() => setResultOpen(false)}
               >
-                {resultSuccess ? "Close" : "Tweak Inputs"}
+                {resultSuccess ? "Debrief complete" : "Adjust & retry"}
               </button>
             </div>
           </div>
