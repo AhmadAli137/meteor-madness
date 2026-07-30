@@ -5,6 +5,8 @@
 
 > 🏆 **1st Place — Windsor, Ontario (local event)** &nbsp;•&nbsp; 🌍 **Global Nominee** — Team CRG, October 4–5, 2025
 
+**🚀 Live demo: [meteor-madness-six.vercel.app](https://meteor-madness-six.vercel.app)**
+
 A hypothetical near-Earth asteroid, *Impactor-2025*, is on a collision course with
 Earth. Can you understand the threat — and stop it? Meteor Madness turns real NASA
 near-Earth-object data into an explorable story: browse real asteroids, fly a
@@ -88,11 +90,13 @@ NASA_API_KEY=your_key_here
 
 ## Deploying (Vercel)
 
-The repo is Vercel-ready (`vercel.json`, `postinstall` Cesium asset copy):
+The production deployment lives at
+[meteor-madness-six.vercel.app](https://meteor-madness-six.vercel.app) and
+auto-deploys from `main`. To deploy your own fork:
 
 1. Import the repo at [vercel.com/new](https://vercel.com/new)
 2. Add the `NASA_API_KEY` environment variable
-3. Deploy — no other configuration needed
+3. Deploy — no other configuration needed (`postinstall` copies Cesium's assets)
 
 ## Data & attribution
 
