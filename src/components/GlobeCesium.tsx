@@ -77,11 +77,11 @@ export default function GlobeCesium({
           sceneModePicker: true,
           terrainProvider: terrain,
           creditContainer: creditDiv,
+          // skip the default Ion layer; OSM tiles are added below
+          baseLayer: false,
         } as any);
 
-        // Add imagery AFTER construction
         try {
-          viewer.imageryLayers.removeAll();
           viewer.imageryLayers.addImageryProvider(imagery);
         } catch {}
 

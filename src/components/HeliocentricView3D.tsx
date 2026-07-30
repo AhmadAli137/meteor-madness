@@ -187,7 +187,9 @@ export default function HeliocentricView3D({ neos, selectedId }: Props) {
         fullscreenButton: false,
         geocoder: false,
         creditContainer: creditDiv,
-      });
+        // globe is hidden — skip the default Ion imagery layer entirely
+        baseLayer: false,
+      } as any);
 
       // Minimal space look
       viewer.scene.globe.show = false;

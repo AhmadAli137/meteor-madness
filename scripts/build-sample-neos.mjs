@@ -63,8 +63,11 @@ for (const c of cad.data) {
 
   const dateISO = iso(String(c[cadIdx.cd]));
   const missAu = Number(c[cadIdx.dist]);
-  const diameter = Number(sb[sIdx.diameter]);
-  const H = Number(sb[sIdx.H]);
+  // SBDB returns null for unmeasured fields — Number(null) is 0, so guard first
+  const dRaw = sb[sIdx.diameter];
+  const diameter = dRaw == null || dRaw === "" ? NaN : Number(dRaw);
+  const hRaw = sb[sIdx.H];
+  const H = hRaw == null || hRaw === "" ? NaN : Number(hRaw);
 
   // H-magnitude size estimate (albedo 0.14) when no measured diameter
   const diaKm = Number.isFinite(diameter)

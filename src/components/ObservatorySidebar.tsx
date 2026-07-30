@@ -332,7 +332,10 @@ export default function ObservatorySidebar({
                   <>
                     <span className="opacity-40">•</span>
                     <span className="whitespace-nowrap">
-                      Ø ~ {Number(n.dia_km).toFixed(2)} km
+                      Ø ~{" "}
+                      {Number(n.dia_km) >= 1
+                        ? `${Number(n.dia_km).toFixed(2)} km`
+                        : `${Math.max(1, Math.round(Number(n.dia_km) * 1000))} m`}
                     </span>
                   </>
                 )}

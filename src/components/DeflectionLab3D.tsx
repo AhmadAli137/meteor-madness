@@ -272,6 +272,8 @@ export default function DeflectionLab3D() {
         fullscreenButton: false,
         geocoder: false,
         creditContainer: creditDiv,
+        // globe is hidden — skip the default Ion imagery layer entirely
+        baseLayer: false,
       } as any);
 
       viewer.scene.requestRenderMode = true;
