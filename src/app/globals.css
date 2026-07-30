@@ -1,0 +1,212 @@
+/* =========================
+   Tailwind + Theme Variables
+   ========================= */
+@import "tailwindcss";
+
+:root {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --background: #ffffff;
+    --foreground: #171717;
+  }
+}
+
+/* Base document styles */
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(
+    --font-sans,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    Helvetica,
+    Arial,
+    "Apple Color Emoji",
+    "Segoe UI Emoji"
+  );
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Prevent layout shifts from images/videos if any */
+img,
+svg,
+video,
+canvas {
+  display: block;
+  max-width: 100%;
+}
+
+/* =========================
+   App Layout Helpers
+   ========================= */
+/* Make the main app area stretch */
+#__next,
+body > div:first-child {
+  min-height: 100%;
+}
+
+/* In case you use 100svh sections, ensure they truly fill */
+.full-height {
+  min-height: 100svh;
+}
+
+/* =========================
+   Cesium: Full-Bleed + "Card" Toolbar
+   ========================= */
+
+/* Force the Cesium viewer to fill its parent (your scene pane) */
+.cesium-viewer,
+.cesium-widget,
+.cesium-viewer-cesiumWidgetContainer {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Ensure the canvas scales with the container */
+.cesium-widget canvas {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  display: block !important;
+}
+
+/* Toolbar styled like a glassy card (top-right) */
+.cesium-viewer-toolbar {
+  position: absolute !important;
+  top: 12px !important;
+  right: 12px !important;
+  z-index: 10;
+
+  padding: 8px !important;
+  border-radius: 12px !important;
+  background: rgba(24, 24, 27, 0.72) !important; /* neutral-900/70 */
+  border: 1px solid rgba(255, 255, 255, 0.12) !important; /* ring-white/10 */
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45) !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+/* Toolbar buttons to match the card */
+.cesium-button,
+.cesium-button:focus {
+  background: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #e5e7eb !important; /* text-white/85 */
+  border-radius: 10px !important;
+  padding: 6px 8px !important;
+  min-height: 32px !important;
+  line-height: 1 !important;
+}
+.cesium-button:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Consistent icon sizing on dark background */
+.cesium-viewer-toolbar svg,
+.cesium-button svg {
+  width: 1.1em !important;
+  height: 1.1em !important;
+  color: #e5e7eb !important;
+}
+
+/* Optional: hide big navigation help until explicitly opened */
+.cesium-navigation-help,
+.cesium-viewer-navigationContainer .cesium-navigation-help {
+  display: none !important;
+}
+
+/* Optional: hide credits/watermark */
+.cesium-widget-credits,
+.cesium-credit-textContainer,
+.cesium-credit-logoContainer {
+  display: none !important;
+}
+
+/* Slight scaling for toolbar on larger screens */
+.cesium-viewer {
+  font-size: 14px;
+}
+@media (min-width: 1024px) {
+  .cesium-viewer {
+    font-size: 16px;
+  }
+}
+
+/* =========================
+   Utility tweaks
+   ========================= */
+/* Smooth scrolling for anchor jumps */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Subtle scrollbar styling (optional) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+*::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  border: 2px solid transparent;
+}
+
+/* =========================
+   Simulation Lab Viewports
+   ========================= */
+/* Fixed-height viewport for the Cesium labs (Impactor / Deflection),
+   sized below the shared top nav (~56px). */
+.mm-view {
+  position: relative;
+  width: 100%;
+  height: calc(100svh - 120px);
+  min-height: 560px;
+  overflow: hidden;
+}
+
+/* Per-container Cesium widget toggles */
+.cesium-hide-widgets .cesium-viewer-toolbar,
+.cesium-hide-widgets .cesium-viewer-animationContainer,
+.cesium-hide-widgets .cesium-viewer-timelineContainer,
+.cesium-hide-widgets .cesium-viewer-bottom {
+  display: none !important;
+}
+.cesium-show-widgets .cesium-viewer-toolbar,
+.cesium-show-widgets .cesium-viewer-animationContainer,
+.cesium-show-widgets .cesium-viewer-timelineContainer {
+  display: block !important;
+}
