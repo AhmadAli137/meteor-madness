@@ -224,10 +224,13 @@ export default function GlobeCesium({
       (imp.massKg && imp.velKps
         ? (0.5 * imp.massKg * (imp.velKps * 1000) ** 2) / 4.184e15
         : undefined);
-    // heavy-damage blast radius, same nuclear cube-root scaling as the panel
-    const blastM = energyMT
-      ? Math.min(4.6 * Math.cbrt(energyMT) * 1000, 2_500_000)
+    // heavy-damage blast radius, same nuclear cube-root scaling as the panel;
+    // the drawn ring is capped (flat-circle approximation degrades at
+    // continental scale) but the label always reports the true radius
+    const blastTrueM = energyMT
+      ? 4.6 * Math.cbrt(energyMT) * 1000
       : craterR * 12;
+    const blastM = Math.min(blastTrueM, 2_500_000);
     const flashMax = Math.max(craterR * 6, 80_000);
 
     const reduced =
@@ -327,7 +330,9 @@ export default function GlobeCesium({
     add({
       position: Cartesian3.fromDegrees(lon, lat + toDeg(blastM / R), 0),
       label: {
-        text: `heavy blast ~${Math.round(blastM / 1000).toLocaleString()} km`,
+        text: `heavy blast ~${Math.round(blastTrueM / 1000).toLocaleString()} km${
+          blastTrueM > blastM ? " (ring truncated)" : ""
+        }`,
         font: "12px sans-serif",
         style: LabelStyle.FILL_AND_OUTLINE,
         fillColor: Color.ORANGE,
@@ -413,17 +418,21 @@ export default function GlobeCesium({
         },
       });
 
-      // Impact flash: white-hot disc that blooms and dies in ~0.6 s
+      // Impact flash: white-hot disc that blooms and dies in ~0.6 s.
+      // Cesium evaluates the two axes at slightly different wall-clock times,
+      // and semiMajorAxis must stay >= semiMinorAxis — so the minor axis
+      // reuses the major axis's last computed value. The radius only ever
+      // grows, so a stale value is always <= the fresh one, whichever
+      // order Cesium evaluates them in.
+      let flashR = 1000;
       add({
         ellipse: {
           semiMajorAxis: new CallbackProperty(() => {
             const t = clamp01((now() - T.impact) / (T.flashEnd - T.impact));
-            return Math.max(1000, flashMax * easeOutCubic(t));
+            flashR = Math.max(1000, flashMax * easeOutCubic(t));
+            return flashR;
           }, false),
-          semiMinorAxis: new CallbackProperty(() => {
-            const t = clamp01((now() - T.impact) / (T.flashEnd - T.impact));
-            return Math.max(1000, flashMax * easeOutCubic(t));
-          }, false),
+          semiMinorAxis: new CallbackProperty(() => flashR, false),
           material: new Cesium.ColorMaterialProperty(
             new CallbackProperty(() => {
               const t = clamp01((now() - T.impact) / (T.flashEnd - T.impact));
