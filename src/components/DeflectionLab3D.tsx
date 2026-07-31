@@ -391,13 +391,13 @@ export default function DeflectionLab3D() {
       ents.current.earth = viewer.entities.add({
         name: "Earth",
         position: Cartesian3.fromElements(AU_TO_SCENE, 0, 0),
-        ellipsoid: {
-          radii: new Cartesian3(
-            EARTH_RADIUS_AU * AU_TO_SCENE,
-            EARTH_RADIUS_AU * AU_TO_SCENE,
-            EARTH_RADIUS_AU * AU_TO_SCENE
-          ),
-          material: Color.fromCssColorString("#7ec8ff"),
+        // Billboard, not ellipsoid: Cesium's dynamic-geometry path (needed
+        // for the animated position) drops image materials on ellipsoids
+        billboard: {
+          image: "/planets/earth.png",
+          sizeInMeters: true,
+          width: EARTH_RADIUS_AU * AU_TO_SCENE * 2,
+          height: EARTH_RADIUS_AU * AU_TO_SCENE * 2,
         } as any,
         label: {
           text: "Earth",
@@ -730,7 +730,7 @@ export default function DeflectionLab3D() {
         fillColor: Color.fromCssColorString("#fb7185"),
         outlineColor: Color.BLACK,
         outlineWidth: 4,
-        pixelOffset: new Cartesian2(0, -14),
+        pixelOffset: new Cartesian2(0, 24),
         showBackground: true,
         backgroundColor: Color.fromAlpha(Color.BLACK, 0.55),
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
@@ -754,11 +754,9 @@ export default function DeflectionLab3D() {
       },
     });
 
-    const startVec = new Cartesian3(
-      pBurn.x - 1.2 * AU_TO_SCENE,
-      pBurn.y - 0.6 * AU_TO_SCENE,
-      0
-    );
+    // Launch the interceptor from Earth's position at mission start — keeps
+    // it in the camera frame and tells the right story
+    const startVec = new Cartesian3(AU_TO_SCENE, 0, 0);
     const impactorPos = new SampledPositionProperty();
     impactorPos.addSample(start, startVec);
     impactorPos.addSample(tBurn, burnPos);
@@ -789,7 +787,7 @@ export default function DeflectionLab3D() {
         style: LabelStyle.FILL_AND_OUTLINE,
         outlineColor: Color.BLACK,
         outlineWidth: 2,
-        pixelOffset: new Cartesian2(0, -14),
+        pixelOffset: new Cartesian2(0, -34),
         showBackground: true,
         backgroundColor: Color.fromAlpha(Color.BLACK, 0.45),
         disableDepthTestDistance: Number.POSITIVE_INFINITY,

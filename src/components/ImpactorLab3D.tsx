@@ -347,13 +347,13 @@ export default function ImpactorLab3D() {
       ents.current.earth = viewer.entities.add({
         name: "Earth",
         position: Cartesian3.fromElements(AU_TO_SCENE, 0, 0),
-        ellipsoid: {
-          radii: new Cartesian3(
-            EARTH_RADIUS_AU * AU_TO_SCENE,
-            EARTH_RADIUS_AU * AU_TO_SCENE,
-            EARTH_RADIUS_AU * AU_TO_SCENE
-          ),
-          material: Color.fromCssColorString("#7ec8ff"),
+        // Billboard, not ellipsoid: Cesium's dynamic-geometry path (needed
+        // for the animated position) drops image materials on ellipsoids
+        billboard: {
+          image: "/planets/earth.png",
+          sizeInMeters: true,
+          width: EARTH_RADIUS_AU * AU_TO_SCENE * 2,
+          height: EARTH_RADIUS_AU * AU_TO_SCENE * 2,
         } as any,
         label: {
           text: "Earth",

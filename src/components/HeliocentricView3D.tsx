@@ -267,10 +267,7 @@ export default function HeliocentricView3D({ neos, selectedId }: Props) {
             EARTH_RADIUS_SCENE,
             EARTH_RADIUS_SCENE
           ),
-          material: Color.fromCssColorString("#3b82f6"),
-          outline: true,
-          outlineColor: Color.fromCssColorString("#1e3a8a"),
-          outlineWidth: 1,
+          material: "/textures/earth-blue-marble.jpg",
         },
         label: labelsOn
           ? {
@@ -478,10 +475,7 @@ export default function HeliocentricView3D({ neos, selectedId }: Props) {
           EARTH_RADIUS_SCENE,
           EARTH_RADIUS_SCENE
         ),
-        material: Color.fromCssColorString("#3b82f6"),
-        outline: true,
-        outlineColor: Color.fromCssColorString("#1e3a8a"),
-        outlineWidth: 1,
+        material: "/textures/earth-blue-marble.jpg",
       },
       label: labelsOn
         ? {
