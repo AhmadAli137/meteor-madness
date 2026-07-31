@@ -15,6 +15,7 @@ import {
 import Link from "next/link";
 import { Canvas } from "@react-three/fiber";
 import { Stars } from "@react-three/drei";
+import SoundToggle from "@/components/SoundToggle";
 
 /** All scroll/animation stays in this Client Component */
 export default function HeroClient() {
@@ -34,6 +35,9 @@ export default function HeroClient() {
     <ReactLenis root={mounted} options={{ lerp: 0.05 }}>
       <AuroraHero mounted={mounted} />
       <TeamPlanets />
+      <div className="fixed bottom-4 right-4 z-50">
+        <SoundToggle theme="home" />
+      </div>
     </ReactLenis>
   );
 }

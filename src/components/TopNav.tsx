@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import SoundToggle from "@/components/SoundToggle";
 
 const LINKS = [
   { href: "/observatory", label: "Observatory" },
@@ -9,6 +10,16 @@ const LINKS = [
   { href: "/globe", label: "Impact Site" },
   { href: "/deflection", label: "Mission: Save Earth" },
 ];
+
+const THEME_FOR_PATH: Record<
+  string,
+  "home" | "observatory" | "impact" | "globe" | "deflection"
+> = {
+  "/observatory": "observatory",
+  "/impact": "impact",
+  "/globe": "globe",
+  "/deflection": "deflection",
+};
 
 export default function TopNav() {
   const pathname = usePathname();
@@ -41,6 +52,15 @@ export default function TopNav() {
               {l.label}
             </Link>
           ))}
+          <SoundToggle
+            theme={
+              THEME_FOR_PATH[
+                Object.keys(THEME_FOR_PATH).find((p) =>
+                  pathname?.startsWith(p)
+                ) ?? ""
+              ] ?? "home"
+            }
+          />
         </nav>
       </div>
     </header>

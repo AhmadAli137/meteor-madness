@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import ObservatorySidebar from "@/components/ObservatorySidebar";
+import SoundToggle from "@/components/SoundToggle";
 import HeliocentricView2D, {
   type ApproachRow,
 } from "@/components/HeliocentricView2D";
@@ -148,6 +149,7 @@ export default function ObservatoryPage() {
             >
               Mission: Save Earth
             </Link>
+            <SoundToggle theme="observatory" />
           </div>
         </div>
       </header>

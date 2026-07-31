@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { sfxBoom } from "@/lib/audio";
 import Link from "next/link";
 
 /**
@@ -413,6 +414,7 @@ export default function ImpactorLab3D() {
         ) {
           viewer.clock.shouldAnimate = false;
           popupShownRef.current = true;
+          sfxBoom(1);
           setShowImpactModal(true);
 
           if (impactSiteRef.current) {

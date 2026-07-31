@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { sfxBoom, sfxWhoosh } from "@/lib/audio";
 
 export type ImpactOverlay = {
   lat: number;
@@ -39,8 +40,13 @@ export default function GlobeCesium({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewerRef = useRef<any>(null);
   const roRef = useRef<ResizeObserver | null>(null);
-  const seqRef = useRef<{ raf: number; entities: any[] } | null>(null);
+  const seqRef = useRef<{
+    raf: number;
+    entities: any[];
+    timers: number[];
+  } | null>(null);
   const [replayKey, setReplayKey] = useState(0);
+  const [flashOn, setFlashOn] = useState(false);
 
   // Build viewer once
   useEffect(() => {
@@ -147,6 +153,7 @@ export default function GlobeCesium({
     const seq = seqRef.current;
     if (!seq) return;
     cancelAnimationFrame(seq.raf);
+    for (const id of seq.timers) window.clearTimeout(id);
     const viewer = viewerRef.current?.viewer;
     if (viewer) {
       for (const ent of seq.entities) {
@@ -259,6 +266,7 @@ export default function GlobeCesium({
     const craterRing = circle(craterR, 180);
 
     const ents: any[] = [];
+    const timers: number[] = [];
     const add = (opts: any) => {
       const e = viewer.entities.add(opts);
       ents.push(e);
@@ -483,6 +491,40 @@ export default function GlobeCesium({
       });
     }
 
+    // ================= sound, flash & shake =================
+    if (!reduced) {
+      // meteor whoosh during the approach
+      timers.push(
+        window.setTimeout(
+          () => sfxWhoosh(T.impact - T.meteorStart),
+          T.meteorStart * 1000
+        )
+      );
+      // boom + white screen flash + camera shake at the moment of impact
+      timers.push(
+        window.setTimeout(() => {
+          sfxBoom(1);
+          setFlashOn(true);
+          timers.push(window.setTimeout(() => setFlashOn(false), 180));
+          const shakeStart = performance.now();
+          const SHAKE_S = 0.45;
+          const shake = () => {
+            if (seqRef.current?.entities !== ents) return;
+            const el = (performance.now() - shakeStart) / 1000;
+            if (el > SHAKE_S) return;
+            const amp = craterR * 0.5 * (1 - el / SHAKE_S);
+            try {
+              viewer.camera.moveRight((Math.random() - 0.5) * amp);
+              viewer.camera.moveUp((Math.random() - 0.5) * amp);
+              viewer.scene.requestRender();
+            } catch {}
+            requestAnimationFrame(shake);
+          };
+          shake();
+        }, T.impact * 1000)
+      );
+    }
+
     // ================= camera choreography =================
     const wideSphere = new BoundingSphere(
       center,
@@ -536,7 +578,7 @@ export default function GlobeCesium({
         seq.raf = requestAnimationFrame(tick);
       }
     };
-    seqRef.current = { raf: requestAnimationFrame(tick), entities: ents };
+    seqRef.current = { raf: requestAnimationFrame(tick), entities: ents, timers };
   }
 
   return (
@@ -548,6 +590,15 @@ export default function GlobeCesium({
         ref={containerRef}
         className="h-full w-full"
         style={{ position: "relative", overflow: "hidden" }}
+      />
+      {/* white flash at the moment of impact */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-10 bg-white"
+        style={{
+          opacity: flashOn ? 0.85 : 0,
+          transition: flashOn ? "opacity 60ms" : "opacity 900ms ease-out",
+        }}
       />
       {impact && (
         <button

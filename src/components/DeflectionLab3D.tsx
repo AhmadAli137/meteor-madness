@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { sfxBoom, sfxLaunch } from "@/lib/audio";
 
 /**
  * Mission: Save Earth — Deflection Lab.
@@ -298,8 +299,12 @@ export default function DeflectionLab3D() {
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const speedRef = useRef(1);
-  // Sim epoch of the intercept burn — drives the auto slow-mo around it
-  const burnRef = useRef<{ burnJD: any; windowSec: number } | null>(null);
+  // Sim epochs of launch/burn — drive slow-mo and sim-time-crossing SFX
+  const burnRef = useRef<{
+    burnJD: any;
+    launchJD?: any;
+    windowSec: number;
+  } | null>(null);
   const [viewerReady, setViewerReady] = useState(false);
   const [simProg, setSimProg] = useState<{ date: string; frac: number }>({
     date: "—",
@@ -481,21 +486,32 @@ export default function DeflectionLab3D() {
       };
       viewer.clock.onTick.addEventListener(uiTick);
 
-      // Bullet-time around the intercept burn: when playing fast, slow the
-      // clock while the sim passes the burn so the deflection is readable
+      // Bullet-time around the intercept burn + SFX when sim time crosses
+      // the launch and the burn
+      let prevJD: any = null;
       const slowmo = () => {
         const info = burnRef.current;
-        if (!info || !viewer.clock.shouldAnimate) return;
+        if (!info || !viewer.clock.shouldAnimate) {
+          prevJD = null;
+          return;
+        }
+        const cur = viewer.clock.currentTime;
+        if (prevJD) {
+          const crossed = (target: any) =>
+            Cesium.JulianDate.compare(prevJD, target) < 0 &&
+            Cesium.JulianDate.compare(cur, target) >= 0;
+          if (info.launchJD && crossed(info.launchJD)) sfxLaunch();
+          if (crossed(info.burnJD)) sfxBoom(0.7);
+        }
+        prevJD = cur.clone();
+
         const base = speedRef.current * 86400;
         if (speedRef.current <= 2) {
           viewer.clock.multiplier = base;
           return;
         }
         const dt = Math.abs(
-          Cesium.JulianDate.secondsDifference(
-            viewer.clock.currentTime,
-            info.burnJD
-          )
+          Cesium.JulianDate.secondsDifference(cur, info.burnJD)
         );
         viewer.clock.multiplier =
           dt < info.windowSec ? Math.max(base * 0.15, 0.5 * 86400) : base;
@@ -900,9 +916,6 @@ export default function DeflectionLab3D() {
       },
     });
 
-    // Tell the clock where the burn is so playback slows around it
-    burnRef.current = { burnJD: tBurn.clone(), windowSec: 4 * 86400 };
-
     // --- Rocket launch: a curved arc from Earth to the intercept point ---
     // Launches from wherever Earth actually is at launch time and flies a
     // bezier arc that bulges away from the Sun, arriving exactly at the burn.
@@ -910,6 +923,13 @@ export default function DeflectionLab3D() {
     const flightDays = Math.max(10, Math.min(150, dBurnDays * 0.8));
     const dLaunch = dBurnDays - flightDays;
     const tLaunch = JulianDate.addDays(start, dLaunch, new JulianDate());
+
+    // Tell the clock where launch/burn are (slow-mo + sound cues)
+    burnRef.current = {
+      burnJD: tBurn.clone(),
+      launchJD: tLaunch.clone(),
+      windowSec: 4 * 86400,
+    };
     const launchAngle = earthAngleAtSim(dLaunch);
     const A = new Cartesian3(
       Math.cos(launchAngle) * AU_TO_SCENE,
