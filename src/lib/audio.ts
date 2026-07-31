@@ -20,10 +20,28 @@ let ambient: { stop: () => void; theme: Theme } | null = null;
 let pendingTheme: Theme | null = null;
 
 const LS_KEY = "mm-sound";
+const VOL_KEY = "mm-volume";
+// headroom multiplier — the compressor below keeps loud moments from clipping
+const MASTER_SCALE = 2.4;
 
 export function soundEnabled(): boolean {
   if (typeof window === "undefined") return false;
   return window.localStorage.getItem(LS_KEY) === "on";
+}
+
+export function getVolume(): number {
+  if (typeof window === "undefined") return 0.8;
+  const v = Number(window.localStorage.getItem(VOL_KEY));
+  return Number.isFinite(v) && v > 0 ? Math.min(1, v) : 0.8;
+}
+
+export function setVolume(v: number) {
+  if (typeof window === "undefined") return;
+  const vol = Math.max(0, Math.min(1, v));
+  window.localStorage.setItem(VOL_KEY, String(vol));
+  if (master && ctx) {
+    master.gain.setTargetAtTime(vol * MASTER_SCALE, ctx.currentTime, 0.05);
+  }
 }
 
 function ensureCtx(): AudioContext | null {
@@ -36,8 +54,16 @@ function ensureCtx(): AudioContext | null {
     if (!AC) return null;
     ctx = new AC();
     master = ctx.createGain();
-    master.gain.value = 0.9;
-    master.connect(ctx.destination);
+    master.gain.value = getVolume() * MASTER_SCALE;
+    // soft-knee limiter so the boosted master never clips
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -14;
+    comp.knee.value = 20;
+    comp.ratio.value = 8;
+    comp.attack.value = 0.004;
+    comp.release.value = 0.3;
+    master.connect(comp);
+    comp.connect(ctx.destination);
   }
   if (ctx.state === "suspended") void ctx.resume();
   return ctx;
@@ -84,18 +110,33 @@ const THEMES: Record<
     lfoHz: number;
     gain: number;
     noise?: number; // optional airy-noise layer gain
+    pulse?: { hz: number; depth: number }; // rhythmic gain throb (drama)
   }
 > = {
   // warm, wide home pad — A minor feel
-  home: { root: 55, intervals: [1, 1.5, 2, 2.4], filterHz: 420, lfoHz: 0.05, gain: 0.045 },
+  home: { root: 55, intervals: [1, 1.5, 2, 2.4], filterHz: 420, lfoHz: 0.05, gain: 0.08 },
   // airy, bright observatory shimmer
-  observatory: { root: 82.4, intervals: [1, 2, 3, 4.05], filterHz: 900, lfoHz: 0.08, gain: 0.035, noise: 0.006 },
-  // impactor lab — dark, focused
-  impact: { root: 49, intervals: [1, 1.498, 2.997], filterHz: 300, lfoHz: 0.04, gain: 0.05 },
+  observatory: { root: 82.4, intervals: [1, 2, 3, 4.05], filterHz: 900, lfoHz: 0.08, gain: 0.06, noise: 0.01 },
+  // impactor lab — dark minor tension with an ominous throb
+  impact: {
+    root: 46.2,
+    intervals: [1, 1.189, 1.498, 2, 2.378],
+    filterHz: 340,
+    lfoHz: 0.07,
+    gain: 0.115,
+    pulse: { hz: 1.15, depth: 0.55 },
+  },
   // impact site — tense low drone
-  globe: { root: 41.2, intervals: [1, 1.189, 2, 2.378], filterHz: 260, lfoHz: 0.03, gain: 0.055 },
-  // deflection — hopeful open fifth
-  deflection: { root: 65.4, intervals: [1, 1.5, 2, 3], filterHz: 520, lfoHz: 0.06, gain: 0.045 },
+  globe: { root: 41.2, intervals: [1, 1.189, 2, 2.378], filterHz: 260, lfoHz: 0.03, gain: 0.11 },
+  // deflection — heroic open fifth with a marching pulse
+  deflection: {
+    root: 65.4,
+    intervals: [0.5, 1, 1.5, 2, 2.52, 3],
+    filterHz: 620,
+    lfoHz: 0.06,
+    gain: 0.1,
+    pulse: { hz: 0.85, depth: 0.4 },
+  },
 };
 
 export function startAmbient(theme: Theme) {
@@ -169,8 +210,24 @@ export function startAmbient(theme: Theme) {
     nodes.push(src);
   }
 
-  // gentle fade in
-  bus.gain.linearRampToValueAtTime(cfg.gain, c.currentTime + 2.5);
+  // rhythmic throb for the dramatic themes
+  if (cfg.pulse) {
+    const p = c.createOscillator();
+    p.type = "sine";
+    p.frequency.value = cfg.pulse.hz;
+    const pg = c.createGain();
+    pg.gain.value = (cfg.gain * cfg.pulse.depth) / 2;
+    p.connect(pg);
+    pg.connect(bus.gain);
+    p.start();
+    nodes.push(p);
+  }
+
+  // gentle fade in (to the pulse midpoint when throbbing)
+  const target = cfg.pulse
+    ? cfg.gain * (1 - cfg.pulse.depth / 2)
+    : cfg.gain;
+  bus.gain.linearRampToValueAtTime(target, c.currentTime + 2.5);
 
   ambient = {
     theme,
@@ -216,7 +273,7 @@ export function sfxBoom(intensity = 1) {
   sub.frequency.setValueAtTime(120, t0);
   sub.frequency.exponentialRampToValueAtTime(24, t0 + 1.2);
   const sg = c.createGain();
-  sg.gain.setValueAtTime(0.9 * intensity, t0);
+  sg.gain.setValueAtTime(1.1 * intensity, t0);
   sg.gain.exponentialRampToValueAtTime(0.001, t0 + 1.6);
   sub.connect(sg);
   sg.connect(master);
@@ -230,12 +287,52 @@ export function sfxBoom(intensity = 1) {
   nf.frequency.setValueAtTime(900, t0);
   nf.frequency.exponentialRampToValueAtTime(60, t0 + 2.6);
   const ng = c.createGain();
-  ng.gain.setValueAtTime(0.55 * intensity, t0);
+  ng.gain.setValueAtTime(0.75 * intensity, t0);
   ng.gain.exponentialRampToValueAtTime(0.001, t0 + 2.8);
   noise.connect(nf);
   nf.connect(ng);
   ng.connect(master);
   noise.start(t0);
+}
+
+/** Victory fanfare: rising major arpeggio with a shimmering tail. */
+export function sfxFanfare() {
+  if (!soundEnabled()) return;
+  const c = ensureCtx();
+  if (!c || !master || c.state === "suspended") return;
+  const out = master;
+  const t0 = c.currentTime;
+  const NOTES = [261.63, 329.63, 392.0, 523.25]; // C E G C
+  NOTES.forEach((f, i) => {
+    const at = t0 + i * 0.16;
+    const dur = i === NOTES.length - 1 ? 1.8 : 0.5;
+    for (const mult of [1, 2]) {
+      const o = c.createOscillator();
+      o.type = mult === 1 ? "triangle" : "sine";
+      o.frequency.value = f * mult;
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(mult === 1 ? 0.35 : 0.12, at + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.001, at + dur);
+      o.connect(g);
+      g.connect(out);
+      o.start(at);
+      o.stop(at + dur + 0.1);
+    }
+  });
+  // sparkle
+  const noise = noiseBurst(c, 1.6);
+  const hf = c.createBiquadFilter();
+  hf.type = "highpass";
+  hf.frequency.value = 6000;
+  const ng = c.createGain();
+  ng.gain.setValueAtTime(0.0001, t0 + 0.45);
+  ng.gain.exponentialRampToValueAtTime(0.12, t0 + 0.6);
+  ng.gain.exponentialRampToValueAtTime(0.001, t0 + 2);
+  noise.connect(hf);
+  hf.connect(ng);
+  ng.connect(master);
+  noise.start(t0 + 0.45);
 }
 
 /** Meteor whoosh: bandpass noise sweeping down as it tears in. */
@@ -253,7 +350,7 @@ export function sfxWhoosh(seconds = 1.8) {
   f.frequency.exponentialRampToValueAtTime(500, t0 + seconds);
   const g = c.createGain();
   g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(0.35, t0 + seconds * 0.75);
+  g.gain.exponentialRampToValueAtTime(0.5, t0 + seconds * 0.75);
   g.gain.exponentialRampToValueAtTime(0.001, t0 + seconds);
   noise.connect(f);
   f.connect(g);
@@ -274,7 +371,7 @@ export function sfxLaunch() {
   f.frequency.exponentialRampToValueAtTime(1800, t0 + 1.2);
   const g = c.createGain();
   g.gain.setValueAtTime(0.001, t0);
-  g.gain.exponentialRampToValueAtTime(0.4, t0 + 0.5);
+  g.gain.exponentialRampToValueAtTime(0.55, t0 + 0.5);
   g.gain.exponentialRampToValueAtTime(0.001, t0 + 1.9);
   noise.connect(f);
   f.connect(g);

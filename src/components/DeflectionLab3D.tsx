@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { sfxBoom, sfxLaunch } from "@/lib/audio";
+import { sfxBoom, sfxFanfare, sfxLaunch } from "@/lib/audio";
+
+const CONFETTI_COLORS = ["#34d399", "#67e8f9", "#fde047", "#f472b6", "#a78bfa"];
 
 /**
  * Mission: Save Earth — Deflection Lab.
@@ -313,6 +315,14 @@ export default function DeflectionLab3D() {
 
   const [resultOpen, setResultOpen] = useState(false);
   const [resultSuccess, setResultSuccess] = useState<boolean | null>(null);
+  const [briefingOpen, setBriefingOpen] = useState(false);
+
+  // Mission briefing cutscene, once per session
+  useEffect(() => {
+    try {
+      if (!sessionStorage.getItem("mm-briefed")) setBriefingOpen(true);
+    } catch {}
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -1060,8 +1070,11 @@ export default function DeflectionLab3D() {
 
   function evaluateMission() {
     if (!Number.isFinite(missKm)) return;
-    setResultSuccess(missKm >= SAFE_MISS_KM);
+    const success = missKm >= SAFE_MISS_KM;
+    setResultSuccess(success);
     setResultOpen(true);
+    if (success) sfxFanfare();
+    else sfxBoom(0.6);
   }
 
   const disableAsteroid = useCarry && !!carry;
@@ -1420,6 +1433,56 @@ export default function DeflectionLab3D() {
         </div>
       </div>
 
+      {briefingOpen && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
+          <div className="mm-pop-in relative z-10 w-[560px] max-w-[94vw] rounded-2xl bg-neutral-950 p-6 font-mono ring-2 ring-emerald-500/40">
+            <div className="text-[11px] uppercase tracking-widest text-emerald-400">
+              ▮ incoming transmission — planetary defense command
+              <span className="mm-blink">_</span>
+            </div>
+            <h2 className="mt-3 font-sans text-xl font-bold text-white">
+              Mission: Save Earth
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-white/75">
+              Deep-space radar has confirmed our worst case:{" "}
+              <span className="font-semibold text-rose-300">
+                {carry?.name ?? "an uncatalogued asteroid"}
+              </span>
+              {carry?.diameterKm
+                ? ` — ${carry.diameterKm} km wide, inbound at ${
+                    carry?.velKps ?? "?"
+                  } km/s —`
+                : ""}{" "}
+              is on a collision course with Earth.
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-white/75">
+              Your orders: design and launch a kinetic interceptor. Nudge it —
+              early. A millimetre per second today beats a kilometre per
+              second tomorrow.
+            </p>
+            <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-white/55">
+              <li>Strike early — lead time multiplies your push</li>
+              <li>Aim prograde (φ → 0°) to change its orbital period</li>
+              <li>
+                Clear {SAFE_MISS_KM.toLocaleString()} km and Earth lives
+              </li>
+            </ul>
+            <button
+              className="mt-5 w-full rounded-lg bg-emerald-600 py-2 font-sans text-sm font-semibold ring-1 ring-emerald-400 hover:bg-emerald-500"
+              onClick={() => {
+                setBriefingOpen(false);
+                try {
+                  sessionStorage.setItem("mm-briefed", "1");
+                } catch {}
+              }}
+            >
+              ▶ Accept Mission
+            </button>
+          </div>
+        </div>
+      )}
+
       {resultOpen && resultSuccess !== null && (
         <div className="absolute inset-0 z-50 flex items-center justify-center">
           <div
@@ -1427,18 +1490,48 @@ export default function DeflectionLab3D() {
             onClick={() => setResultOpen(false)}
           />
           <div
-            className={`relative z-10 w-[440px] max-w-[92vw] space-y-4 rounded-2xl bg-neutral-900 p-6 text-center ring-2 ${
+            className={`mm-pop-in relative z-10 w-[460px] max-w-[92vw] space-y-4 overflow-hidden rounded-2xl bg-neutral-900 p-6 text-center ring-2 ${
               resultSuccess ? "ring-emerald-500/60" : "ring-rose-500/60"
             }`}
           >
+            {resultSuccess && (
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 overflow-hidden"
+              >
+                {Array.from({ length: 40 }, (_, i) => (
+                  <span
+                    key={i}
+                    className="mm-confetti"
+                    style={{
+                      left: `${(i * 97) % 100}%`,
+                      backgroundColor:
+                        CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+                      animationDelay: `${(i % 10) * 0.22}s`,
+                      animationDuration: `${2.2 + (i % 5) * 0.45}s`,
+                    }}
+                  />
+                ))}
+              </div>
+            )}
             <div className="text-5xl">{resultSuccess ? "🌍✅" : "☄️💥"}</div>
             <div
-              className={`text-2xl font-bold ${
+              className={`text-3xl font-extrabold tracking-wide ${
                 resultSuccess ? "text-emerald-400" : "text-rose-400"
               }`}
             >
-              {resultSuccess ? "Earth is Safe!" : "Impact Not Averted"}
+              {resultSuccess ? "EARTH SAVED" : "Impact Not Averted"}
             </div>
+            {resultSuccess && (
+              <p className="text-sm leading-relaxed text-white/75">
+                <span className="font-mono text-emerald-300">
+                  {carry?.name ?? "The asteroid"}
+                </span>{" "}
+                slips harmlessly past Earth. In mission control rooms across
+                the planet, people are on their feet. You struck early, and
+                physics did the rest — the DART playbook, executed perfectly.
+              </p>
+            )}
 
             <div
               className={`text-3xl font-bold tabular-nums ${

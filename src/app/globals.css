@@ -352,6 +352,70 @@ html {
 }
 
 /* =========================
+   Celebration & Briefing
+   ========================= */
+@keyframes mm-confetti-fall {
+  0% {
+    transform: translateY(-30px) rotate(0deg);
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(420px) rotate(680deg);
+    opacity: 0;
+  }
+}
+.mm-confetti {
+  position: absolute;
+  top: -20px;
+  width: 8px;
+  height: 13px;
+  border-radius: 2px;
+  animation: mm-confetti-fall 2.8s linear infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes mm-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+.mm-blink {
+  animation: mm-blink 1s step-end infinite;
+}
+
+@keyframes mm-pop-in {
+  0% {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.mm-pop-in {
+  animation: mm-pop-in 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mm-confetti {
+    animation: none;
+    display: none;
+  }
+  .mm-pop-in {
+    animation: none;
+  }
+}
+
+/* =========================
    Simulation Lab Viewports
    ========================= */
 /* Fixed-height viewport for the Cesium labs (Impactor / Deflection),
