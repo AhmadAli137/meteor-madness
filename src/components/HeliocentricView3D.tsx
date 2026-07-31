@@ -195,6 +195,13 @@ export default function HeliocentricView3D({ neos, selectedId }: Props) {
       viewer.scene.globe.show = false;
       (viewer.scene as any).skyAtmosphere = undefined;
       (viewer.scene as any).skyBox = undefined;
+      // hide Cesium's built-in Sun/Moon renderers (bright moving balls)
+      try {
+        (viewer.scene as any).sun.show = false;
+      } catch {}
+      try {
+        (viewer.scene as any).moon.show = false;
+      } catch {}
       viewer.scene.backgroundColor = Color.fromCssColorString("#0b0f19");
       (viewer.cesiumWidget.creditContainer as HTMLElement).style.display =
         "none";

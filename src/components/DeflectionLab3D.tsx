@@ -290,10 +290,14 @@ export default function DeflectionLab3D() {
     impulseVec?: any;
     impactor?: any;
     impactorPath?: any;
+    burnFlash?: any;
   }>({});
 
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const speedRef = useRef(1);
+  // Sim epoch of the intercept burn — drives the auto slow-mo around it
+  const burnRef = useRef<{ burnJD: any; windowSec: number } | null>(null);
   const [viewerReady, setViewerReady] = useState(false);
   const [simProg, setSimProg] = useState<{ date: string; frac: number }>({
     date: "—",
@@ -333,9 +337,38 @@ export default function DeflectionLab3D() {
       viewer.scene.globe.show = false;
       (viewer.scene as any).skyAtmosphere = undefined;
       (viewer.scene as any).skyBox = undefined;
+      // Cesium renders the real Sun/Moon by default — at accelerated sim time
+      // they whip around the scene as bright distracting balls
+      try {
+        (viewer.scene as any).sun.show = false;
+      } catch {}
+      try {
+        (viewer.scene as any).moon.show = false;
+      } catch {}
       viewer.scene.backgroundColor = Color.fromCssColorString("#0b0f19");
       (viewer.cesiumWidget.creditContainer as HTMLElement).style.display =
         "none";
+
+      // Default wheel zoom is unusable here: the whole scene (1 AU = 1e6 m)
+      // sits inside the WGS84 ellipsoid Cesium bases its zoom rate on.
+      // Replace it with simple distance-from-origin zoom.
+      viewer.scene.screenSpaceCameraController.enableZoom = false;
+      const canvas = viewer.scene.canvas as HTMLCanvasElement;
+      const onWheel = (e: WheelEvent) => {
+        e.preventDefault();
+        const cam = viewer.camera;
+        const dist = Cartesian3.magnitude(cam.position);
+        const factor = e.deltaY < 0 ? 0.85 : 1.18;
+        const next = clamp(dist * factor, 0.25 * AU_TO_SCENE, 15 * AU_TO_SCENE);
+        const dir = Cartesian3.normalize(cam.position, new Cartesian3());
+        cam.position = Cartesian3.multiplyByScalar(
+          dir,
+          next,
+          new Cartesian3()
+        );
+        viewer.scene.requestRender();
+      };
+      canvas.addEventListener("wheel", onWheel, { passive: false });
 
       viewer.homeButton.viewModel.command.beforeExecute.addEventListener(
         (e: any) => {
@@ -446,7 +479,36 @@ export default function DeflectionLab3D() {
       };
       viewer.clock.onTick.addEventListener(uiTick);
 
-      viewerRef.current = { viewer, Cesium, keepRendering, uiTick };
+      // Bullet-time around the intercept burn: when playing fast, slow the
+      // clock while the sim passes the burn so the deflection is readable
+      const slowmo = () => {
+        const info = burnRef.current;
+        if (!info || !viewer.clock.shouldAnimate) return;
+        const base = speedRef.current * 86400;
+        if (speedRef.current <= 2) {
+          viewer.clock.multiplier = base;
+          return;
+        }
+        const dt = Math.abs(
+          Cesium.JulianDate.secondsDifference(
+            viewer.clock.currentTime,
+            info.burnJD
+          )
+        );
+        viewer.clock.multiplier =
+          dt < info.windowSec ? Math.max(base * 0.15, 0.5 * 86400) : base;
+      };
+      viewer.clock.onTick.addEventListener(slowmo);
+
+      viewerRef.current = {
+        viewer,
+        Cesium,
+        keepRendering,
+        uiTick,
+        slowmo,
+        canvas,
+        onWheel,
+      };
       setViewerReady(true);
     })();
 
@@ -454,8 +516,10 @@ export default function DeflectionLab3D() {
       const store = viewerRef.current;
       if (!store) return;
       try {
+        store.canvas?.removeEventListener("wheel", store.onWheel);
         store.viewer.clock.onTick.removeEventListener(store.keepRendering);
         store.viewer.clock.onTick.removeEventListener(store.uiTick);
+        store.viewer.clock.onTick.removeEventListener(store.slowmo);
         store.viewer.destroy();
       } catch {}
       viewerRef.current = null;
@@ -480,6 +544,7 @@ export default function DeflectionLab3D() {
   }
 
   useEffect(() => {
+    speedRef.current = speed;
     const v = viewerRef.current?.viewer;
     if (!v) return;
     v.clock.multiplier = speed * 86400;
@@ -504,7 +569,13 @@ export default function DeflectionLab3D() {
       ClockRange,
       PolylineGlowMaterialProperty,
       PolylineDashMaterialProperty,
+      TimeInterval,
+      TimeIntervalCollection,
     } = Cesium;
+
+    // Entity availability helper (sim-time window an entity exists in)
+    const avail = (a: any, b: any) =>
+      new TimeIntervalCollection([new TimeInterval({ start: a, stop: b })]);
 
     // Glowing trail behind a moving body — makes the animation readable
     const trail = (color: any, widthPx = 7) => ({
@@ -531,6 +602,7 @@ export default function DeflectionLab3D() {
     rm(ents.current.impulseVec);
     rm(ents.current.impactor);
     rm(ents.current.impactorPath);
+    rm(ents.current.burnFlash);
     ents.current.rockOrig =
       ents.current.rockNew =
       ents.current.orbitOrig =
@@ -539,6 +611,7 @@ export default function DeflectionLab3D() {
       ents.current.impulseVec =
       ents.current.impactor =
       ents.current.impactorPath =
+      ents.current.burnFlash =
         undefined;
 
     const start = JulianDate.now();
@@ -684,6 +757,9 @@ export default function DeflectionLab3D() {
     }
     ents.current.rockNew = viewer.entities.add({
       name: "Asteroid (deflected)",
+      // The deflected track only exists once the interceptor has hit —
+      // before the burn there is just one asteroid
+      availability: avail(tBurn, stop),
       position: posNew,
       point: {
         pixelSize: 9,
@@ -747,12 +823,40 @@ export default function DeflectionLab3D() {
     const ty = (tangent.y / tlen) * eps * sign;
     const tip = new Cartesian3(pBurn.x + tx, pBurn.y + ty, pBurn.z);
     ents.current.impulseVec = viewer.entities.add({
+      availability: avail(tBurn, stop),
       polyline: {
         positions: [burnPos, tip],
         width: 3,
         material: Color.YELLOW.withAlpha(0.9),
       },
     });
+
+    // Intercept flash — appears the moment the interceptor hits
+    const flashStop = JulianDate.addDays(tBurn, 8, new JulianDate());
+    ents.current.burnFlash = viewer.entities.add({
+      availability: avail(tBurn, flashStop),
+      position: burnPos,
+      point: {
+        pixelSize: 22,
+        color: Color.fromCssColorString("#fff3c0"),
+        outlineColor: Color.ORANGE,
+        outlineWidth: 6,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+      label: {
+        text: "💥 intercept!",
+        font: "bold 14px sans-serif",
+        fillColor: Color.YELLOW,
+        style: LabelStyle.FILL_AND_OUTLINE,
+        outlineColor: Color.BLACK,
+        outlineWidth: 4,
+        pixelOffset: new Cartesian2(0, -30),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+    });
+
+    // Tell the clock where the burn is so playback slows around it
+    burnRef.current = { burnJD: tBurn.clone(), windowSec: 4 * 86400 };
 
     // Launch the interceptor from Earth's position at mission start — keeps
     // it in the camera frame and tells the right story
@@ -772,6 +876,8 @@ export default function DeflectionLab3D() {
     });
     ents.current.impactor = viewer.entities.add({
       name: "Interceptor",
+      // the interceptor is destroyed at the burn
+      availability: avail(start, tBurn),
       position: impactorPos,
       point: {
         pixelSize: 7,
@@ -805,12 +911,12 @@ export default function DeflectionLab3D() {
     const offset = new HeadingPitchRange(
       CMath.toRadians(22),
       -CMath.toRadians(28),
-      sphere.radius * 2.05
+      sphere.radius * 2.3
     );
     viewer.camera.flyToBoundingSphere(sphere, { offset, duration: 0 });
     // The control panel covers the left ~30% of the screen — slide the
     // camera left so the orbit system sits in the open space to the right
-    viewer.camera.moveLeft(sphere.radius * 0.35);
+    viewer.camera.moveLeft(sphere.radius * 0.3);
 
     viewer.scene.requestRender();
   }, [

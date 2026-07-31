@@ -289,9 +289,34 @@ export default function ImpactorLab3D() {
       viewer.scene.globe.show = false;
       (viewer.scene as any).skyAtmosphere = undefined;
       (viewer.scene as any).skyBox = undefined;
+      // Cesium renders the real Sun/Moon by default — at accelerated sim time
+      // they whip around the scene as bright distracting balls
+      try {
+        (viewer.scene as any).sun.show = false;
+      } catch {}
+      try {
+        (viewer.scene as any).moon.show = false;
+      } catch {}
       viewer.scene.backgroundColor = Color.fromCssColorString("#0b0f19");
       (viewer.cesiumWidget.creditContainer as HTMLElement).style.display =
         "none";
+
+      // Default wheel zoom is unusable here: the whole scene (1 AU = 1e6 m)
+      // sits inside the WGS84 ellipsoid Cesium bases its zoom rate on.
+      // Replace it with simple distance-from-origin zoom.
+      viewer.scene.screenSpaceCameraController.enableZoom = false;
+      const canvas = viewer.scene.canvas as HTMLCanvasElement;
+      const onWheel = (e: WheelEvent) => {
+        e.preventDefault();
+        const cam = viewer.camera;
+        const dist = Cartesian3.magnitude(cam.position);
+        const factor = e.deltaY < 0 ? 0.85 : 1.18;
+        const next = clamp(dist * factor, 0.25 * AU_TO_SCENE, 15 * AU_TO_SCENE);
+        const dir = Cartesian3.normalize(cam.position, new Cartesian3());
+        cam.position = Cartesian3.multiplyByScalar(dir, next, new Cartesian3());
+        viewer.scene.requestRender();
+      };
+      canvas.addEventListener("wheel", onWheel, { passive: false });
 
       viewer.homeButton.viewModel.command.beforeExecute.addEventListener(
         (e: any) => {
@@ -402,13 +427,21 @@ export default function ImpactorLab3D() {
       };
       viewer.clock.onTick.addEventListener(endHandler);
 
-      viewerRef.current = { viewer, Cesium, keepRendering, endHandler };
+      viewerRef.current = {
+        viewer,
+        Cesium,
+        keepRendering,
+        endHandler,
+        canvas,
+        onWheel,
+      };
     })();
 
     return () => {
       const store = viewerRef.current;
       if (!store) return;
       try {
+        store.canvas?.removeEventListener("wheel", store.onWheel);
         store.viewer.clock.onTick.removeEventListener(store.keepRendering);
         store.viewer.clock.onTick.removeEventListener(store.endHandler);
         store.viewer.destroy();
