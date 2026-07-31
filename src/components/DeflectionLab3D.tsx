@@ -292,6 +292,7 @@ export default function DeflectionLab3D() {
     impactorPath?: any;
     burnFlash?: any;
     rockGhost?: any;
+    launchFlash?: any;
   }>({});
 
   const [playing, setPlaying] = useState(false);
@@ -578,12 +579,22 @@ export default function DeflectionLab3D() {
     const avail = (a: any, b: any) =>
       new TimeIntervalCollection([new TimeInterval({ start: a, stop: b })]);
 
+    // --- Timeline ---
+    // The sim window always opens well before the intercept so you watch the
+    // asteroid cruise, then the rocket launch, then the deflection — even
+    // when the burn lead time exceeds the time to encounter.
+    const totalDays = Math.max(1 / 24, msToEncounter / 86_400_000);
+    const burnLead = clamp(I.burnDays, 0, 36_500);
+    const simDays = Math.max(totalDays, burnLead + 45);
+    const msSim = simDays * 86_400_000;
+    const burnDays = Math.min(burnLead, simDays - 1e-3);
+
     // Glowing trail behind a moving body — makes the animation readable
     const trail = (color: any, widthPx = 7, alpha = 0.85) => ({
-      resolution: Math.max(3600, msToEncounter / 1000 / 600),
+      resolution: Math.max(3600, msSim / 1000 / 600),
       width: widthPx,
       leadTime: 0,
-      trailTime: (msToEncounter / 1000) * 0.3,
+      trailTime: (msSim / 1000) * 0.3,
       material: new PolylineGlowMaterialProperty({
         glowPower: 0.25,
         color: color.withAlpha(alpha),
@@ -605,6 +616,7 @@ export default function DeflectionLab3D() {
     rm(ents.current.impactorPath);
     rm(ents.current.burnFlash);
     rm(ents.current.rockGhost);
+    rm(ents.current.launchFlash);
     ents.current.rockOrig =
       ents.current.rockNew =
       ents.current.orbitOrig =
@@ -615,22 +627,14 @@ export default function DeflectionLab3D() {
       ents.current.impactorPath =
       ents.current.burnFlash =
       ents.current.rockGhost =
+      ents.current.launchFlash =
         undefined;
 
     const start = JulianDate.now();
-    const stop = JulianDate.addSeconds(
-      start,
-      msToEncounter / 1000,
-      new JulianDate()
-    );
-    const totalDays = Math.max(
-      1 / 24,
-      JulianDate.secondsDifference(stop, start) / 86400
-    );
-    const burnDays = clamp(I.burnDays, 0, totalDays - 1e-3);
+    const stop = JulianDate.addSeconds(start, msSim / 1000, new JulianDate());
     const tBurn = JulianDate.addDays(
       start,
-      totalDays - burnDays,
+      simDays - burnDays,
       new JulianDate()
     );
 
@@ -640,16 +644,32 @@ export default function DeflectionLab3D() {
     viewer.clock.clockRange = ClockRange.CLAMPED;
     viewer.clock.shouldAnimate = false;
 
+    // Geometry is anchored at the ENCOUNTER (thetaImpact, set by the
+    // "hits Earth in" input); everything is positioned back from there.
+    const thetaImpact = earthAngleAt(totalDays);
+    const e0 = eccFromVel(asteroid.speedKps);
+    const a0AU = (1 * (1 + e0 * Math.cos(thetaImpact))) / (1 - e0 * e0);
+    const n0 = N_EARTH / Math.pow(a0AU, 1.5);
+
+    const s = Math.sqrt((1 - e0) / (1 + e0));
+    const tanE2 = Math.tan(thetaImpact / 2) * s;
+    const Eimp = 2 * Math.atan(tanE2);
+    const Mimp = Eimp - e0 * Math.sin(Eimp);
+    const M0deg = ((Mimp - n0 * simDays) * 180) / Math.PI;
+    // Earth's angle d days after sim start (reaches thetaImpact at encounter)
+    const earthAngleAtSim = (d: number) =>
+      thetaImpact + earthAngleAt(d - simDays);
+
     const earthPos = new SampledPositionProperty();
     const earthN = 576;
     for (let i = 0; i <= earthN; i++) {
       const t = JulianDate.addSeconds(
         start,
-        (i / earthN) * (msToEncounter / 1000),
+        (i / earthN) * (msSim / 1000),
         new JulianDate()
       );
       const d = JulianDate.secondsDifference(t, start) / 86400;
-      const th = earthAngleAt(d);
+      const th = earthAngleAtSim(d);
       earthPos.addSample(
         t,
         new Cartesian3(
@@ -661,25 +681,13 @@ export default function DeflectionLab3D() {
     }
     if (ents.current.earth) ents.current.earth.position = earthPos;
 
-    // original orbit sizing
-    const thetaImpact = earthAngleAt(totalDays);
-    const e0 = eccFromVel(asteroid.speedKps);
-    const a0AU = (1 * (1 + e0 * Math.cos(thetaImpact))) / (1 - e0 * e0);
-    const n0 = N_EARTH / Math.pow(a0AU, 1.5);
-
-    const s = Math.sqrt((1 - e0) / (1 + e0));
-    const tanE2 = Math.tan(thetaImpact / 2) * s;
-    const Eimp = 2 * Math.atan(tanE2);
-    const Mimp = Eimp - e0 * Math.sin(Eimp);
-    const M0deg = ((Mimp - n0 * totalDays) * 180) / Math.PI;
-
     // Original path
     const posOrig = new SampledPositionProperty();
     const rockN = 900;
     for (let i = 0; i <= rockN; i++) {
       const t = JulianDate.addSeconds(
         start,
-        (i / rockN) * (msToEncounter / 1000),
+        (i / rockN) * (msSim / 1000),
         new JulianDate()
       );
       const d = JulianDate.secondsDifference(t, start) / 86400;
@@ -770,7 +778,7 @@ export default function DeflectionLab3D() {
     for (let i = 0; i <= rockN; i++) {
       const t = JulianDate.addSeconds(
         start,
-        (i / rockN) * (msToEncounter / 1000),
+        (i / rockN) * (msSim / 1000),
         new JulianDate()
       );
       const d = JulianDate.secondsDifference(t, start) / 86400;
@@ -880,15 +888,54 @@ export default function DeflectionLab3D() {
     // Tell the clock where the burn is so playback slows around it
     burnRef.current = { burnJD: tBurn.clone(), windowSec: 4 * 86400 };
 
-    // Launch the interceptor from Earth's position at mission start — keeps
-    // it in the camera frame and tells the right story
-    const startVec = new Cartesian3(AU_TO_SCENE, 0, 0);
+    // --- Rocket launch: a curved arc from Earth to the intercept point ---
+    // Launches from wherever Earth actually is at launch time and flies a
+    // bezier arc that bulges away from the Sun, arriving exactly at the burn.
+    const dBurnDays = simDays - burnDays;
+    const flightDays = Math.max(10, Math.min(150, dBurnDays * 0.8));
+    const dLaunch = dBurnDays - flightDays;
+    const tLaunch = JulianDate.addDays(start, dLaunch, new JulianDate());
+    const launchAngle = earthAngleAtSim(dLaunch);
+    const A = new Cartesian3(
+      Math.cos(launchAngle) * AU_TO_SCENE,
+      Math.sin(launchAngle) * AU_TO_SCENE,
+      0
+    );
+    const midX = (A.x + burnPos.x) / 2;
+    const midY = (A.y + burnPos.y) / 2;
+    const chordX = burnPos.x - A.x;
+    const chordY = burnPos.y - A.y;
+    const chordLen = Math.hypot(chordX, chordY) || 1;
+    let perpX = -chordY / chordLen;
+    let perpY = chordX / chordLen;
+    if (midX * perpX + midY * perpY < 0) {
+      perpX = -perpX;
+      perpY = -perpY;
+    }
+    const bulge = 0.18 * chordLen;
+    const ctrlX = midX + perpX * bulge;
+    const ctrlY = midY + perpY * bulge;
+
+    const arcPts: any[] = [];
     const impactorPos = new SampledPositionProperty();
-    impactorPos.addSample(start, startVec);
-    impactorPos.addSample(tBurn, burnPos);
+    const NARC = 64;
+    for (let i = 0; i <= NARC; i++) {
+      const t = i / NARC;
+      const omt = 1 - t;
+      const x = omt * omt * A.x + 2 * t * omt * ctrlX + t * t * burnPos.x;
+      const y = omt * omt * A.y + 2 * t * omt * ctrlY + t * t * burnPos.y;
+      const c3 = new Cartesian3(x, y, 0);
+      arcPts.push(c3);
+      impactorPos.addSample(
+        JulianDate.addDays(start, dLaunch + t * flightDays, new JulianDate()),
+        c3
+      );
+    }
+
     ents.current.impactorPath = viewer.entities.add({
+      availability: avail(tLaunch, stop),
       polyline: {
-        positions: [startVec, burnPos],
+        positions: arcPts,
         width: 1,
         material: new PolylineDashMaterialProperty({
           color: Color.YELLOW.withAlpha(0.35),
@@ -896,10 +943,30 @@ export default function DeflectionLab3D() {
         }),
       },
     });
+
+    // Launch callout at liftoff
+    ents.current.launchFlash = viewer.entities.add({
+      availability: avail(
+        tLaunch,
+        JulianDate.addDays(tLaunch, 6, new JulianDate())
+      ),
+      position: A,
+      label: {
+        text: "🚀 launch!",
+        font: "bold 13px sans-serif",
+        fillColor: Color.fromCssColorString("#7dd3fc"),
+        style: LabelStyle.FILL_AND_OUTLINE,
+        outlineColor: Color.BLACK,
+        outlineWidth: 4,
+        pixelOffset: new Cartesian2(0, -22),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+    });
+
     ents.current.impactor = viewer.entities.add({
       name: "Interceptor",
-      // the interceptor is destroyed at the burn
-      availability: avail(start, tBurn),
+      // flies from launch until it is destroyed at the burn
+      availability: avail(tLaunch, tBurn),
       position: impactorPos,
       point: {
         pixelSize: 7,
