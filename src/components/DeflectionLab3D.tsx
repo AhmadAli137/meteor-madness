@@ -807,9 +807,12 @@ export default function DeflectionLab3D() {
     const offset = new HeadingPitchRange(
       CMath.toRadians(22),
       -CMath.toRadians(28),
-      sphere.radius * 2.3
+      sphere.radius * 2.05
     );
     viewer.camera.flyToBoundingSphere(sphere, { offset, duration: 0 });
+    // The control panel covers the left ~30% of the screen — slide the
+    // camera left so the orbit system sits in the open space to the right
+    viewer.camera.moveLeft(sphere.radius * 0.35);
 
     viewer.scene.requestRender();
   }, [
