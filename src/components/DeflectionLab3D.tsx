@@ -774,6 +774,11 @@ export default function DeflectionLab3D() {
     const M1_burn = E1 - e1 * Math.sin(E1);
     const M0deg1 = (M1_burn * 180) / Math.PI - ((n1 * 180) / Math.PI) * dBurn;
 
+    // The impulse is instantaneous (that's real kinetic-impactor physics),
+    // but the exaggerated divergence ramps in over the weeks after the burn —
+    // like the real drift, separation GROWS with time instead of snapping.
+    const rampDays = Math.min(90, Math.max(15, (simDays - dBurn) * 0.35));
+    const smooth = (t: number) => t * t * (3 - 2 * t); // smoothstep
     const posNew = new SampledPositionProperty();
     for (let i = 0; i <= rockN; i++) {
       const t = JulianDate.addSeconds(
@@ -787,9 +792,19 @@ export default function DeflectionLab3D() {
         const pp = posFromElements(a0AU, e0, 0, 0, 0, Mdeg);
         posNew.addSample(t, new Cartesian3(pp.x, pp.y, pp.z));
       } else {
+        const MdegOld = M0deg + ((n0 * 180) / Math.PI) * d;
+        const pOld = posFromElements(a0AU, e0, 0, 0, 0, MdegOld);
         const Mdeg = M0deg1 + ((n1 * 180) / Math.PI) * d;
-        const pp = posFromElements(a1AU, e1, 0, 0, 0, Mdeg);
-        posNew.addSample(t, new Cartesian3(pp.x, pp.y, pp.z));
+        const pNew = posFromElements(a1AU, e1, 0, 0, 0, Mdeg);
+        const k = smooth(clamp((d - dBurn) / rampDays, 0, 1));
+        posNew.addSample(
+          t,
+          new Cartesian3(
+            pOld.x + (pNew.x - pOld.x) * k,
+            pOld.y + (pNew.y - pOld.y) * k,
+            pOld.z + (pNew.z - pOld.z) * k
+          )
+        );
       }
     }
     ents.current.rockNew = viewer.entities.add({
