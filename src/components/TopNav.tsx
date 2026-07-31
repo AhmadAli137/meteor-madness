@@ -15,7 +15,8 @@ const THEME_FOR_PATH: Record<
   string,
   "home" | "observatory" | "impact" | "globe" | "deflection"
 > = {
-  "/observatory": "observatory",
+  // observatory shares the home theme (continuous pad between the two)
+  "/observatory": "home",
   "/impact": "impact",
   "/globe": "globe",
   "/deflection": "deflection",

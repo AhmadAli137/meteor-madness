@@ -287,9 +287,9 @@ export default function GlobeCesium({
         : clamp01((t - T.impact) / (T.craterIn - T.impact));
       let pulse = 0;
       if (!reduced && t > T.craterIn && t < T.pulseEnd) {
-        pulse = 0.12 * Math.sin((t - T.craterIn) * 4.2) ** 2;
+        pulse = 0.14 * Math.sin((t - T.craterIn) * 4.2) ** 2;
       }
-      return 0.32 * fadeIn + pulse;
+      return 0.5 * fadeIn + pulse;
     };
     add({
       name: `Crater • ${name}`,
@@ -297,7 +297,7 @@ export default function GlobeCesium({
         hierarchy: craterRing,
         material: new Cesium.ColorMaterialProperty(
           new CallbackProperty(
-            () => Color.ORANGERED.withAlpha(craterAlpha()),
+            () => Color.fromCssColorString("#e11d2e").withAlpha(craterAlpha()),
             false
           )
         ),

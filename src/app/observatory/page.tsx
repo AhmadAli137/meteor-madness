@@ -149,7 +149,7 @@ export default function ObservatoryPage() {
             >
               Mission: Save Earth
             </Link>
-            <SoundToggle theme="observatory" />
+            <SoundToggle theme="home" />
           </div>
         </div>
       </header>
