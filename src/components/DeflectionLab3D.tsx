@@ -291,6 +291,7 @@ export default function DeflectionLab3D() {
     impactor?: any;
     impactorPath?: any;
     burnFlash?: any;
+    rockGhost?: any;
   }>({});
 
   const [playing, setPlaying] = useState(false);
@@ -578,14 +579,14 @@ export default function DeflectionLab3D() {
       new TimeIntervalCollection([new TimeInterval({ start: a, stop: b })]);
 
     // Glowing trail behind a moving body — makes the animation readable
-    const trail = (color: any, widthPx = 7) => ({
+    const trail = (color: any, widthPx = 7, alpha = 0.85) => ({
       resolution: Math.max(3600, msToEncounter / 1000 / 600),
       width: widthPx,
       leadTime: 0,
       trailTime: (msToEncounter / 1000) * 0.3,
       material: new PolylineGlowMaterialProperty({
         glowPower: 0.25,
-        color: color.withAlpha(0.85),
+        color: color.withAlpha(alpha),
       }),
     });
 
@@ -603,6 +604,7 @@ export default function DeflectionLab3D() {
     rm(ents.current.impactor);
     rm(ents.current.impactorPath);
     rm(ents.current.burnFlash);
+    rm(ents.current.rockGhost);
     ents.current.rockOrig =
       ents.current.rockNew =
       ents.current.orbitOrig =
@@ -612,6 +614,7 @@ export default function DeflectionLab3D() {
       ents.current.impactor =
       ents.current.impactorPath =
       ents.current.burnFlash =
+      ents.current.rockGhost =
         undefined;
 
     const start = JulianDate.now();
@@ -684,8 +687,10 @@ export default function DeflectionLab3D() {
       const p0 = posFromElements(a0AU, e0, 0, 0, 0, Mdeg);
       posOrig.addSample(t, new Cartesian3(p0.x, p0.y, p0.z));
     }
+    // Before the burn: the one real asteroid, vivid magenta
     ents.current.rockOrig = viewer.entities.add({
-      name: "Asteroid (no deflection)",
+      name: "Asteroid",
+      availability: avail(start, tBurn),
       position: posOrig,
       point: {
         pixelSize: 9,
@@ -696,7 +701,7 @@ export default function DeflectionLab3D() {
       },
       path: trail(Color.MAGENTA) as any,
       label: {
-        text: "no deflection",
+        text: "asteroid",
         font: "11px sans-serif",
         style: LabelStyle.FILL_AND_OUTLINE,
         outlineColor: Color.BLACK,
@@ -704,6 +709,30 @@ export default function DeflectionLab3D() {
         pixelOffset: new Cartesian2(0, -16),
         showBackground: true,
         backgroundColor: Color.fromAlpha(Color.BLACK, 0.45),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+    });
+
+    // After the burn: a translucent ghost continues on the undeflected
+    // course toward the predicted impact, so the divergence is obvious
+    ents.current.rockGhost = viewer.entities.add({
+      name: "Asteroid (ghost, no deflection)",
+      availability: avail(tBurn, stop),
+      position: posOrig,
+      point: {
+        pixelSize: 7,
+        color: Color.MAGENTA.withAlpha(0.35),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+      path: trail(Color.MAGENTA, 4, 0.3) as any,
+      label: {
+        text: "ghost — if not deflected",
+        font: "10px sans-serif",
+        fillColor: Color.MAGENTA.withAlpha(0.7),
+        style: LabelStyle.FILL_AND_OUTLINE,
+        outlineColor: Color.BLACK,
+        outlineWidth: 2,
+        pixelOffset: new Cartesian2(0, -14),
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
     });
@@ -836,21 +865,14 @@ export default function DeflectionLab3D() {
     ents.current.burnFlash = viewer.entities.add({
       availability: avail(tBurn, flashStop),
       position: burnPos,
-      point: {
-        pixelSize: 22,
-        color: Color.fromCssColorString("#fff3c0"),
-        outlineColor: Color.ORANGE,
-        outlineWidth: 6,
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      },
       label: {
         text: "💥 intercept!",
-        font: "bold 14px sans-serif",
+        font: "bold 15px sans-serif",
         fillColor: Color.YELLOW,
         style: LabelStyle.FILL_AND_OUTLINE,
         outlineColor: Color.BLACK,
         outlineWidth: 4,
-        pixelOffset: new Cartesian2(0, -30),
+        pixelOffset: new Cartesian2(0, -20),
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
     });
@@ -1273,7 +1295,8 @@ export default function DeflectionLab3D() {
           {/* Legend */}
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-white/60">
             <span>
-              <span className="text-fuchsia-400">●</span> no deflection
+              <span className="text-fuchsia-400">●</span> asteroid / ghost if
+              not deflected
             </span>
             <span>
               <span className="text-lime-400">●</span> deflected
